@@ -1,10 +1,12 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 set -euo pipefail
 
 BUILD_DIR="${BUILD_DIR:-build}"
 RAW_DIR="$BUILD_DIR/raw"
 
 mkdir -p "$BUILD_DIR"
+
+rm -rf "$RAW_DIR"
 mkdir -p "$RAW_DIR"
 
 # build tools
@@ -31,7 +33,7 @@ odin build src \
 # create an archive with odin runtime symbols
 # this means we won't have to link unused runtime code in the
 # final binary.
-arm-none-eabi-ar rcs $BUILD_DIR/runtime.a \
+arm-none-eabi-ar rcs "$BUILD_DIR/runtime.a" \
     $RAW_DIR/main.raw-runtime-*.obj \
     $RAW_DIR/main.raw-builtin.obj
 
@@ -57,13 +59,17 @@ arm-none-eabi-as -mcpu=arm7tdmi \
 # build the ELF using ARM gcc + linker script for memory sections.
 # --gc-sections means unused runtime code is stripped out, and binary
 # size is minimal.
+# Also include libgcc (-lgcc) for general helpers like integer division
+# and soft float support (although it should be used sparingly)
 arm-none-eabi-gcc -mcpu=arm7tdmi -marm -nostdlib \
     -Wl,-T,linker_script.ld \
     -Wl,--gc-sections \
+    -Wl,-no-warn-execstack \
     -o "$BUILD_DIR/program.elf" \
     "$BUILD_DIR/rsrt0.o" \
     "$BUILD_DIR/main.o" \
-    "$BUILD_DIR/runtime.a"
+    "$BUILD_DIR/runtime.a" \
+    -lgcc
 
 # convert ELF to GBA binary
 arm-none-eabi-objcopy -O binary \

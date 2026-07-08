@@ -30,3 +30,8 @@ init:
 
 abort:
     b abort
+
+@ marks the stack as not executable
+@ gcc warns about this otherwise
+@ build/rsrt0.o: missing .note.GNU-stack section implies executable stack
+.section .note.GNU-stack, "", %progbits

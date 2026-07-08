@@ -47,11 +47,6 @@ Display_Control :: bit_field (u16) {
 	sprite_window_enabled: bool | 1,
 }
 
-
-rgb :: proc "contextless" (r, g, b: u16) -> u16 {
-	return (b << 10) | (g << 5) | r
-}
-
 RED :: u16(0b11111)
 GREEN :: u16(0b11111 << 5)
 BLUE :: u16(0b11111 << 10)
@@ -68,11 +63,11 @@ store_pixel :: proc "contextless" (x, y: int, color: u16) {
 
 @(export)
 gba_main :: proc "contextless" () {
-	dspcn := Display_Control{}
-	dspcn.mode = 3
-	dspcn.bg2_enabled = true
-
-	store(REG_DISPCNT, u16(dspcn))
+	dspcnt := Display_Control {
+		mode        = 3,
+		bg2_enabled = true,
+	}
+	store(REG_DISPCNT, u16(dspcnt))
 
 	for i in 0 ..< SCREEN_PIXELS {
 		store_pixel(i % SCREEN_WIDTH, i / SCREEN_WIDTH, RED)
