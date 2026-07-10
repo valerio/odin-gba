@@ -10,7 +10,7 @@ rm -rf "$RAW_DIR"
 mkdir -p "$RAW_DIR"
 
 # build tools
-odin build tools -out:"$BUILD_DIR/tools"
+odin build tools -out:"$BUILD_DIR/odin-gba"
 
 # build main source as freestanding arm
 odin build src \
@@ -76,7 +76,7 @@ arm-none-eabi-objcopy -O binary \
     "$BUILD_DIR/program.elf" \
     "$BUILD_DIR/program.gba"
 
-"$BUILD_DIR/tools" "$BUILD_DIR/program.gba"
+"$BUILD_DIR/odin-gba" header "$BUILD_DIR/program.gba"
 
 echo "Build succeeded!"
 echo "Output: $BUILD_DIR/program.gba"

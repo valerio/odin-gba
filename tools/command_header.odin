@@ -24,6 +24,7 @@
 
 package tools
 
+import "core:flags"
 import "core:fmt"
 import "core:mem"
 import "core:os"
@@ -54,7 +55,7 @@ LOGO :: []u8 {
 // odinfmt: enable
 
 // TODO: take this as input?
-TITLE :: []u8{'G', 'I', 'N', 'G', 'E', 'R', 'B', 'I', 'L', 'L', '<', '3'}
+TITLE :: "GINGERBILL<3"
 GAME_CODE :: []u8{'O', 'D', 'I', 'N'}
 MAKER_CODE :: []u8{'M', 'E'}
 CHECKSUM_MAGIC :: 0x19
@@ -68,7 +69,11 @@ checksum :: proc(data: []u8) -> u8 {
 	return 0 - sum
 }
 
-rewrite_gba_header :: proc(filepath: string, allocator := context.allocator) -> os.Error {
+rewrite_gba_header :: proc(
+	filepath: string,
+	title: string = TITLE,
+	allocator := context.allocator,
+) -> os.Error {
 	f := os.open(filepath, {.Read, .Write}) or_return
 	defer os.close(f)
 
@@ -81,7 +86,8 @@ rewrite_gba_header :: proc(filepath: string, allocator := context.allocator) -> 
 	// we can just write the header and be done
 
 	copy(buf[0x04:0xA0], LOGO)
-	copy(buf[0xA0:0xAC], TITLE)
+	mem.zero_slice(buf[0xA0:0xAC])
+	copy(buf[0xA0:0xAC], title)
 	copy(buf[0xAC:0xB0], GAME_CODE)
 	copy(buf[0xB0:0xB2], MAKER_CODE)
 	buf[0xB2] = 0x96 // magic, snort snort
@@ -98,16 +104,39 @@ rewrite_gba_header :: proc(filepath: string, allocator := context.allocator) -> 
 	return nil
 }
 
-main :: proc() {
-	if len(os.args) != 2 {
-		fmt.eprintfln("usage: header-write ROM_FILE")
-		os.exit(1)
+Header_Params :: struct {
+	filename: string `args:"pos=0,required" usage:"ROM file to write header to."`,
+	title:    string `usage:"ROM title, must be 12 characters or less."`,
+}
+
+header_flag_checker :: proc(_: rawptr, name: string, value: any, _: string) -> (error: string) {
+	switch name {
+	case "title":
+		title := value.(string)
+		if len(title) > 12 {
+			error = "ROM title must be 12 characters or less."
+		}
+	case:
 	}
 
-	filepath := os.args[1]
+	return
+}
 
-	if err := rewrite_gba_header(filepath); err != nil {
-		fmt.eprintfln("could not rewrite header for %s: %v", filepath, err)
-		os.exit(2)
+
+run_header :: proc(args: []string) -> int {
+	p: Header_Params
+	flags.register_flag_checker(header_flag_checker)
+	flags.parse_or_exit(&p, args, .Unix)
+
+	title := p.title
+	if len(title) == 0 {
+		title = TITLE
 	}
+
+	if err := rewrite_gba_header(p.filename, title); err != nil {
+		fmt.eprintfln("could not rewrite header for %s: %v", p.filename, err)
+		return EXIT_FAILURE
+	}
+
+	return EXIT_SUCCESS
 }
