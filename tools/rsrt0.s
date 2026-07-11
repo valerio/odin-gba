@@ -1,5 +1,5 @@
-@ Adapted from min-gba
-@ https://github.com/rust-console/min-gba
+# Adapted from min-gba
+# https://github.com/rust-console/min-gba
 
 .section .text._start, "ax"
 .global _start
@@ -7,31 +7,96 @@
 .cpu arm7tdmi
 .arm
 
-@ GBA header - 196B, 4 bytes are for the branch (b init)
-@ The remainder 188B should be reserved and set during
-@ build time.
+# GBA header - 192B, 4 bytes are for the branch (b init)
+# The remainder 188B should be reserved and set during
+# build time.
 _start:
     b init
     .space 188
 
 init:
-    @ Set System mode in CPSR
+    # Set System mode in CPSR
     mov r0, #0x1f
     msr CPSR_c, r0
 
-    @ Use the top of IWRAM as the initial stack.
+    # Use the top of IWRAM as the initial stack.
     ldr sp, =0x03007F00
 
     ldr r0, =gba_main
     bx r0
 
+# infinite loop in case gba_main returns
 1:
     b 1b
 
 abort:
     b abort
 
-@ marks the stack as not executable
-@ gcc warns about this otherwise
-@ build/rsrt0.o: missing .note.GNU-stack section implies executable stack
+# IRQ handler
+# This is the user-defined IRQ handler, called by the BIOS.
+# The BIOS enters this in ARM state, so the handler must be in ARM mode.
+# TODO: can this be turned into a shim and handled via Odin/thumb code?
+# perhaps this can be easier once inline asm lands in 1.0
+.section .text.gba_irq, "ax", %progbits
+.align 2
+.arm
+
+.global irq_handler
+.type irq_handler, %function
+irq_handler:
+    # select the interrupts, masking with IE so disabled are filtered
+    ldr r0, =0x04000200     @ r0 <- &IE
+    ldrh r1, [r0]           @ r1 <- IE
+    ldrh r2, [r0, #2]       @ r2 <- IF (IE + 2)
+    and r1, r1, r2          @ r1 <- IE & IF
+
+    # clear interrupts (1 -> clears that interrupt)
+    strh r1, [r0, #2]       @ IF <- r1 (pending interrupts)
+
+    # set the handled interrupt also in the BIOS flags
+    # these are read by e.g. the BIOS vblank_intr_wait
+    # it wouldn't work otherwise (IF is cleared before it runs)
+    ldr r0, =0x03007FF8     @ r0 <- &BIOS_IRQ_FLAGS
+    ldrh r2, [r0]           @ r2 <- BIOS_IRQ_FLAGS
+    orr r2, r2, r1          @ r2 <- BIOS_IRQ_FLAGS | IF
+    strh r2, [r0]           @ BIOS_IRQ_FLAGS <- r2
+
+    bx lr
+
+.size irq_handler, .-irq_handler
+
+.section .text.gba_bios, "ax", %progbits
+.align 2
+.thumb
+
+# IRQ installer, copies irq_handler to the IRQ vector table
+.global bios_irq_install
+.type bios_irq_install, %function
+.thumb_func
+bios_irq_install:
+    ldr r0, =irq_handler
+    ldr r1, =0x03007FFC     @ pointer to user IRQ-handler, called by BIOS
+    str r0, [r1]
+    bx  lr
+
+.size bios_irq_install, .-bios_irq_install
+
+# BIOS function shims, so they can be called from Odin code.
+.global bios_vblank_intr_wait
+.type bios_vblank_intr_wait, %function
+.thumb_func
+bios_vblank_intr_wait:
+    swi 0x05
+    bx lr
+
+.size bios_vblank_intr_wait, . - bios_vblank_intr_wait
+
+
+# TODO: Add remaining BIOS functions
+# I sure would like to have inline asm here.
+
+
+# marks the stack as not executable
+# gcc warns about this otherwise
+# build/rsrt0.o: missing .note.GNU-stack section implies executable stack
 .section .note.GNU-stack, "", %progbits

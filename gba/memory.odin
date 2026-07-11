@@ -4,6 +4,16 @@ package gba
 
 import "base:intrinsics"
 
+
+foreign _ {
+	@(link_name = "bios_vblank_intr_wait")
+	bios_vblank_intr_wait :: proc "c" () ---
+
+	@(link_name = "bios_irq_install")
+	bios_irq_install :: proc "c" () ---
+}
+
+
 SCREEN_WIDTH :: 240
 SCREEN_HEIGHT :: 160
 SCREEN_PIXELS :: SCREEN_WIDTH * SCREEN_HEIGHT
@@ -12,6 +22,12 @@ REG_DISPCNT :: uintptr(0x0400_0000)
 REG_DISPSTAT :: uintptr(0x0400_0004)
 REG_VCOUNT :: uintptr(0x0400_0006)
 REG_KEYINPUT :: uintptr(0x0400_0130)
+REG_IE :: uintptr(0x0400_0200)
+REG_IF :: uintptr(0x0400_0202)
+REG_IME :: uintptr(0x0400_0208)
+
+BIOS_IRQ_FLAGS :: uintptr(0x0300_7ff8)
+
 VRAM :: uintptr(0x0600_0000)
 
 // Input helpers
@@ -138,26 +154,10 @@ Display_Stat :: bit_field (u16) {
 }
 
 
-// Polls until VBLANK is set.
-// Watch out, it's a busy-wait loop.
-wait_for_vblank :: proc "contextless" () {
-	for {
-		dsps := Display_Stat(load(REG_DISPSTAT))
-		if !dsps.vblank do break
-	}
-	for {
-		dsps := Display_Stat(load(REG_DISPSTAT))
-		if dsps.vblank do break
-	}
-	// If already in vblank, wait for the next frame before returning.
-	// for load(REG_VCOUNT) >= u16(SCREEN_HEIGHT) {}
-	// for load(REG_VCOUNT) < u16(SCREEN_HEIGHT) {}
-}
-
-
 RED :: u16(0b11111)
 GREEN :: u16(0b11111 << 5)
 BLUE :: u16(0b11111 << 10)
+YELLOW :: RED | GREEN
 
 store_pixel :: proc "contextless" (x, y: int, color: u16) {
 	index := y * SCREEN_WIDTH + x
@@ -182,4 +182,101 @@ store :: proc "contextless" (addr: uintptr, value: u16) {
 load :: proc "contextless" (addr: uintptr) -> u16 {
 	ptr := cast(^u16)addr
 	return intrinsics.volatile_load(ptr)
+}
+
+
+// General helpers
+
+// Polls until VBLANK is set.
+// It will effectively wait until the next frame.
+// Prefer `wait_for_vblank()`, but note that it
+// requires to init interrupts first.
+busy_wait_for_vblank :: proc "contextless" () {
+	for {
+		dsps := Display_Stat(load(REG_DISPSTAT))
+		if !dsps.vblank do break
+	}
+	for {
+		dsps := Display_Stat(load(REG_DISPSTAT))
+		if dsps.vblank do break
+	}
+}
+
+// Waits for VBLANK using the VBlankIntrWait BIOS function.
+// This will put the CPU to sleep until next VBLANK.
+wait_for_vblank :: proc "contextless" () {
+	bios_vblank_intr_wait()
+}
+
+
+Interrupt :: enum u8 {
+	VBlank = 0,
+	HBlank = 1,
+	VCount = 2,
+	Timer0 = 3,
+	Timer1 = 4,
+	Timer2 = 5,
+	Timer3 = 6,
+	Serial = 7,
+	DMA0   = 8,
+	DMA1   = 9,
+	DMA2   = 10,
+	DMA3   = 11,
+	Key    = 12,
+	Cart   = 13,
+}
+
+// A packed set of interrupts, as used in registers like
+// IE and IF.
+//
+// ```
+// F E D C  B A 9 8  7 6 5 4  3 2 1 0
+// X X T Y  G F E D  S L K J  I C H V
+// ```
+Interrupts :: distinct bit_set[Interrupt]
+
+
+// Initializes the user interrupt handler (defined in assembly).
+// This should be called as early as possible, or ignored if not
+// using interrupt handlers.
+interrupts_init :: proc "contextless" () {
+	// keep all interrupts disabled during this procedure
+	interrupts_main_enable()
+	defer interrupts_main_disable()
+
+	// TODO: these should look more like extern stuff, let's put them
+	// in another package eventually.
+	bios_irq_install()
+
+	// clear IF + BIOS flags.
+	interrupts_clear({.VBlank})
+	store(BIOS_IRQ_FLAGS, 0)
+
+	// enable Vblank IRQs
+	stat := Display_Stat(load(REG_DISPSTAT))
+	stat.vblank_irq_enable = true
+	store(REG_DISPSTAT, u16(stat))
+
+	interrupts_enable({.VBlank})
+}
+
+// disables all interrupts
+interrupts_main_disable :: proc "contextless" () {
+	store(REG_IME, 0)
+}
+
+// enables all interrupts
+interrupts_main_enable :: proc "contextless" () {
+	store(REG_IME, 1)
+}
+
+// sets which interrupts are en/disabled.
+interrupts_enable :: proc "contextless" (is: Interrupts) {
+	store(REG_IE, transmute(u16)is)
+}
+
+// clears specified interrupt flags, if active.
+interrupts_clear :: proc "contextless" (is: Interrupts) {
+	// 1 = clear, 0 = no change
+	store(REG_IF, transmute(u16)is)
 }

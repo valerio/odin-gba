@@ -5,13 +5,15 @@ import "odin-gba:gba"
 BACKGROUND :: gba.RED
 MOVING_BOX_COLOR :: gba.GREEN
 FIXED_BOX_COLOR :: gba.BLUE
-SELECTED_COLOR :: gba.RED | gba.GREEN
+SELECTED_COLOR :: gba.YELLOW
 
 BOX_SIZE :: 32
 BOX_SPEED :: 2
 
 @(export)
 gba_main :: proc "contextless" () {
+	gba.interrupts_init()
+
 	dspcnt := gba.Display_Control {
 		mode        = 3,
 		bg2_enabled = true,
