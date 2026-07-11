@@ -14,7 +14,7 @@ print_usage :: proc() {
 	fmt.println("usage: odin-gba <command> [options]")
 	fmt.println()
 	fmt.println("commands:")
-	fmt.println("  build             build the current project")
+	fmt.println("  build <package>   build a ROM package")
 	fmt.println("  header            write a GBA header to a ROM")
 	fmt.println("  help              show this help")
 }

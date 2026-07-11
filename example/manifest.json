@@ -1,0 +1,8 @@
+{
+  "name": "odin-gba-example",
+  "header": {
+    "title": "ODIN_GBA",
+    "gameCode": "NICE",
+    "makerCode": "00"
+  }
+}
