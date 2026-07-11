@@ -1,5 +1,7 @@
 package gba
 
+// TODO: this file is a grab-bag of utils as I come up with them, split into files as needed
+
 import "base:intrinsics"
 
 SCREEN_WIDTH :: 240
@@ -7,7 +9,66 @@ SCREEN_HEIGHT :: 160
 SCREEN_PIXELS :: SCREEN_WIDTH * SCREEN_HEIGHT
 
 REG_DISPCNT :: uintptr(0x0400_0000)
+REG_DISPSTAT :: uintptr(0x0400_0004)
+REG_VCOUNT :: uintptr(0x0400_0006)
+REG_KEYINPUT :: uintptr(0x0400_0130)
 VRAM :: uintptr(0x0600_0000)
+
+// Input helpers
+
+Button :: enum u8 {
+	A      = 0,
+	B      = 1,
+	Select = 2,
+	Start  = 3,
+	Right  = 4,
+	Left   = 5,
+	Up     = 6,
+	Down   = 7,
+	R      = 8,
+	L      = 9,
+}
+
+Buttons :: distinct bit_set[Button]
+
+// Holds computed button state from previous and current polling.
+// This should be updated only once per frame, ideally just after
+// vblank.
+//
+// Use with `inputs_update()` e.g.
+//
+// ```
+//  i : gba.Inputs
+//  for {
+//    gba.wait_for_vblank()
+//    gba.inputs_update(&i)
+//    if .A in i.pressed {}
+//  }
+// ```
+//
+Inputs :: struct {
+	held:     Buttons,
+	pressed:  Buttons,
+	released: Buttons,
+}
+
+// Reads the current status of inputs as a Buttons bitset.
+// For a more game-loop friendly interface, use `inputs_update()`.
+buttons_read :: proc "contextless" () -> Buttons {
+	raw := ~load(REG_KEYINPUT) // 0: pressed, 1: released
+	return transmute(Buttons)raw
+}
+
+inputs_update :: proc "contextless" (i: ^Inputs) {
+	b := buttons_read()
+	prev := i.held
+	i.held = b
+	i.pressed = i.held - prev
+	i.released = prev - i.held
+}
+
+
+// Display helpers
 
 // The display control register.
 //
@@ -47,16 +108,78 @@ Display_Control :: bit_field (u16) {
 	sprite_window_enabled: bool | 1,
 }
 
+// DISPSTAT - General LCD Status (Read/Write) - 0x0400_0004
+//
+// Display status and Interrupt control. The H-Blank conditions are generated once
+// per scanline, including for the 'hidden' scanlines during V-Blank.
+//
+// ```
+//   Bit   Expl.
+//   0     V-Blank flag   (Read only) (1=VBlank) (set in line 160..226; not 227)
+//   1     H-Blank flag   (Read only) (1=HBlank) (toggled in all lines, 0..227)
+//   2     V-Counter flag (Read only) (1=Match)  (set in selected line)     (R)
+//   3     V-Blank IRQ Enable         (1=Enable)                          (R/W)
+//   4     H-Blank IRQ Enable         (1=Enable)                          (R/W)
+//   5     V-Counter IRQ Enable       (1=Enable)                          (R/W)
+//   6     Not used (0) / DSi: LCD Initialization Ready (0=Busy, 1=Ready)   (R)
+//   7     Not used (0) / NDS: MSB of V-Vcount Setting (LYC.Bit8) (0..262)(R/W)
+//   8-15  V-Count Setting (LYC)      (0..227)                            (R/W)
+// ```
+Display_Stat :: bit_field (u16) {
+	vblank:              bool | 1, // bit 0
+	hblank:              bool | 1, // bit 1
+	vcounter:            bool | 1, // bit 2
+	vblank_irq_enable:   bool | 1, // bit 3
+	hblank_irq_enable:   bool | 1, // bit 4
+	vcounter_irq_enable: bool | 1, // bit 5
+	_:                   bool | 1, // bit 6
+	_:                   bool | 1, // bit 7
+	vcount:              u8   | 8, // bits 8–15
+}
+
+
+// Polls until VBLANK is set.
+// Watch out, it's a busy-wait loop.
+wait_for_vblank :: proc "contextless" () {
+	for {
+		dsps := Display_Stat(load(REG_DISPSTAT))
+		if !dsps.vblank do break
+	}
+	for {
+		dsps := Display_Stat(load(REG_DISPSTAT))
+		if dsps.vblank do break
+	}
+	// If already in vblank, wait for the next frame before returning.
+	// for load(REG_VCOUNT) >= u16(SCREEN_HEIGHT) {}
+	// for load(REG_VCOUNT) < u16(SCREEN_HEIGHT) {}
+}
+
+
 RED :: u16(0b11111)
 GREEN :: u16(0b11111 << 5)
 BLUE :: u16(0b11111 << 10)
+
+store_pixel :: proc "contextless" (x, y: int, color: u16) {
+	index := y * SCREEN_WIDTH + x
+	store(VRAM + uintptr(index * size_of(u16)), color)
+}
+
+fill_rect :: proc "contextless" (left, top, width, height: int, color: u16) {
+	for y in top ..< top + height {
+		for x in left ..< left + width {
+			store_pixel(x, y, color)
+		}
+	}
+}
+
+// Memory helpers
 
 store :: proc "contextless" (addr: uintptr, value: u16) {
 	ptr := cast(^u16)addr
 	intrinsics.volatile_store(ptr, value)
 }
 
-store_pixel :: proc "contextless" (x, y: int, color: u16) {
-	index := y * SCREEN_WIDTH + x
-	store(VRAM + uintptr(index * size_of(u16)), color)
+load :: proc "contextless" (addr: uintptr) -> u16 {
+	ptr := cast(^u16)addr
+	return intrinsics.volatile_load(ptr)
 }

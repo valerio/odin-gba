@@ -2,6 +2,14 @@ package main
 
 import "odin-gba:gba"
 
+BACKGROUND :: gba.RED
+MOVING_BOX_COLOR :: gba.GREEN
+FIXED_BOX_COLOR :: gba.BLUE
+SELECTED_COLOR :: gba.RED | gba.GREEN
+
+BOX_SIZE :: 32
+BOX_SPEED :: 2
+
 @(export)
 gba_main :: proc "contextless" () {
 	dspcnt := gba.Display_Control {
@@ -10,18 +18,42 @@ gba_main :: proc "contextless" () {
 	}
 	gba.store(gba.REG_DISPCNT, u16(dspcnt))
 
-	for i in 0 ..< gba.SCREEN_PIXELS {
-		gba.store_pixel(i % gba.SCREEN_WIDTH, i / gba.SCREEN_WIDTH, gba.RED)
-	}
+	gba.fill_rect(0, 0, gba.SCREEN_WIDTH, gba.SCREEN_HEIGHT, BACKGROUND)
+	x, y := 40, 64
 
-	for y in 40 ..< 120 {
-		for x in 40 ..< 100 {
-			gba.store_pixel(x, y, gba.GREEN)
+	gba.fill_rect(40, 64, BOX_SIZE, BOX_SIZE, MOVING_BOX_COLOR)
+	gba.fill_rect(160, 64, BOX_SIZE, BOX_SIZE, FIXED_BOX_COLOR)
+
+	input: gba.Inputs
+	for {
+		gba.wait_for_vblank()
+		gba.inputs_update(&input)
+
+		old_x, old_y := x, y
+
+		if .Left in input.held && x > 0 {
+			x -= BOX_SPEED
 		}
-		for x in 140 ..< 200 {
-			gba.store_pixel(x, y, gba.BLUE)
+		if .Right in input.held && x + BOX_SIZE < gba.SCREEN_WIDTH {
+			x += BOX_SPEED
+		}
+		if .Up in input.held && y > 0 {
+			y -= BOX_SPEED
+		}
+		if .Down in input.held && y + BOX_SIZE < gba.SCREEN_HEIGHT {
+			y += BOX_SPEED
+		}
+
+		fixed_box_color := FIXED_BOX_COLOR
+		if .A in input.held {
+			fixed_box_color = SELECTED_COLOR
+		}
+		color_changed := .A in input.pressed || .A in input.released
+
+		if old_x != x || old_y != y || color_changed {
+			gba.fill_rect(old_x, old_y, BOX_SIZE, BOX_SIZE, BACKGROUND)
+			gba.fill_rect(160, 64, BOX_SIZE, BOX_SIZE, fixed_box_color)
+			gba.fill_rect(x, y, BOX_SIZE, BOX_SIZE, MOVING_BOX_COLOR)
 		}
 	}
-
-	for {}
 }
