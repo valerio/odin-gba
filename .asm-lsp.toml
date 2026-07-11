@@ -1,0 +1,8 @@
+[default_config]
+assembler = "gas"
+instruction_set = "arm"
+
+[default_config.opts]
+compiler = "arm-none-eabi-as"
+diagnostics = true
+default_diagnostics = true
