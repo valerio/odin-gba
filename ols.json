@@ -1,0 +1,16 @@
+{
+  "$schema": "https://raw.githubusercontent.com/DanielGavin/ols/master/misc/ols.schema.json",
+  "collections": [
+    {
+      "name": "odin-gba",
+      "path": "."
+    }
+  ],
+  "profile": "default",
+  "profiles": [
+    {
+      "name": "default",
+      "checker_path": ["example", "tools"]
+    }
+  ]
+}
