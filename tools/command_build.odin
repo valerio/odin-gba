@@ -300,6 +300,7 @@ compile_package :: proc(config: Build_Config, paths: Build_Paths, verbose: bool)
 		"-no-type-assert",
 		"-no-thread-local",
 		"-use-separate-modules",
+		"-thread-count:1", // workaround for a segfault on linux, fixed in https://github.com/odin-lang/Odin/pull/6997
 		"-o:size",
 		fmt.tprintf("-out:%s", paths.raw_object),
 	)
