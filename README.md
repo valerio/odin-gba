@@ -32,7 +32,6 @@ Odin `dev-2026-07` (with `-bedrock` flag)
 [GNU Arm Embedded toolchain](https://developer.arm.com/tools-and-software/gnu-toolchain#Downloads), for the following:
 
 - `arm-none-eabi-as` for assembler code
-  - odin 1.0 should add inline assembly and make this replaceable
 - `arm-none-eabi-ar` for archiving all runtime ojbects into one file
 - `arm-none-eabi-gcc` for compile/linking
   - current odin fails to cross-compile/link for freestanding arm32
