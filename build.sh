@@ -12,8 +12,8 @@ mkdir -p "$RAW_DIR"
 # build tools
 odin build tools -out:"$BUILD_DIR/odin-gba"
 
-# build main source as freestanding arm
-odin build src \
+# build source as freestanding arm
+odin build example \
     -bedrock \
     -build-mode:obj \
     -target:freestanding_arm32 \
@@ -54,7 +54,7 @@ arm-none-eabi-objcopy \
 # could this be replaced by inline asm in Odin 1.0?
 arm-none-eabi-as -mcpu=arm7tdmi \
     -o "$BUILD_DIR/rsrt0.o" \
-    src/rsrt0.s
+    tools/rsrt0.s
 
 # build the ELF using ARM gcc + linker script for memory sections.
 # --gc-sections means unused runtime code is stripped out, and binary
@@ -62,7 +62,7 @@ arm-none-eabi-as -mcpu=arm7tdmi \
 # Also include libgcc (-lgcc) for general helpers like integer division
 # and soft float support (although it should be used sparingly)
 arm-none-eabi-gcc -mcpu=arm7tdmi -marm -nostdlib \
-    -Wl,-T,linker_script.ld \
+    -Wl,-T,tools/linker_script.ld \
     -Wl,--gc-sections \
     -Wl,-no-warn-execstack \
     -o "$BUILD_DIR/program.elf" \
