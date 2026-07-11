@@ -54,10 +54,9 @@ LOGO :: []u8 {
 }
 // odinfmt: enable
 
-// TODO: take this as input?
-TITLE :: "GINGERBILL<3"
-GAME_CODE :: []u8{'O', 'D', 'I', 'N'}
-MAKER_CODE :: []u8{'M', 'E'}
+TITLE :: "ODIN_GBA"
+GAME_CODE :: "ODIN"
+MAKER_CODE :: "ME"
 CHECKSUM_MAGIC :: 0x19
 
 checksum :: proc(data: []u8) -> u8 {
@@ -72,6 +71,8 @@ checksum :: proc(data: []u8) -> u8 {
 rewrite_gba_header :: proc(
 	filepath: string,
 	title: string = TITLE,
+	game_code: string = GAME_CODE,
+	maker_code: string = MAKER_CODE,
 	allocator := context.allocator,
 ) -> os.Error {
 	f := os.open(filepath, {.Read, .Write}) or_return
@@ -88,8 +89,8 @@ rewrite_gba_header :: proc(
 	copy(buf[0x04:0xA0], LOGO)
 	mem.zero_slice(buf[0xA0:0xAC])
 	copy(buf[0xA0:0xAC], title)
-	copy(buf[0xAC:0xB0], GAME_CODE)
-	copy(buf[0xB0:0xB2], MAKER_CODE)
+	copy(buf[0xAC:0xB0], game_code)
+	copy(buf[0xB0:0xB2], maker_code)
 	buf[0xB2] = 0x96 // magic, snort snort
 	buf[0xB3] = 0 // main unit code
 	buf[0xB4] = 0 // device type
@@ -104,17 +105,40 @@ rewrite_gba_header :: proc(
 	return nil
 }
 
-Header_Params :: struct {
-	filename: string `args:"pos=0,required" usage:"ROM file to write header to."`,
-	title:    string `usage:"ROM title, must be 12 characters or less."`,
+is_upper_ascii_text :: proc(s: string) -> bool {
+	for r in s {
+		if r < ' ' || r > '~' || ('a' <= r && r <= 'z') {
+			return false
+		}
+	}
+	return true
 }
 
 header_flag_checker :: proc(_: rawptr, name: string, value: any, _: string) -> (error: string) {
 	switch name {
 	case "title":
 		title := value.(string)
+		if !is_upper_ascii_text(title) {
+			error = "ROM title must be uppercase ASCII characters."
+		}
 		if len(title) > 12 {
-			error = "ROM title must be 12 characters or less."
+			error = "ROM title maximum 12 uppercase ASCII characters."
+		}
+	case "game_code":
+		game_code := value.(string)
+		if !is_upper_ascii_text(game_code) {
+			error = "Game code must be uppercase ASCII characters."
+		}
+		if len(game_code) != 4 {
+			error = "Game code must be 4 uppercase ASCII characters."
+		}
+	case "maker_code":
+		maker_code := value.(string)
+		if !is_upper_ascii_text(maker_code) {
+			error = "Maker code must be uppercase ASCII characters."
+		}
+		if len(maker_code) != 2 {
+			error = "Maker code must be 2 uppercase ASCII characters."
 		}
 	case:
 	}
@@ -122,18 +146,23 @@ header_flag_checker :: proc(_: rawptr, name: string, value: any, _: string) -> (
 	return
 }
 
+Header_Params :: struct {
+	filename:   string `args:"pos=0,required" usage:"ROM file to write header to."`,
+	title:      string `args:"name=title" usage:"ROM title, maximum 12 uppercase ASCII characters."`,
+	game_code:  string `args:"name=game" usage:"4-character game code, uppercase ASCII."`,
+	maker_code: string `args:"name=maker" usage:"2-character maker code, uppercase ASCII."`,
+}
 
 run_header :: proc(args: []string) -> int {
 	p: Header_Params
 	flags.register_flag_checker(header_flag_checker)
 	flags.parse_or_exit(&p, args, .Unix)
 
-	title := p.title
-	if len(title) == 0 {
-		title = TITLE
-	}
+	title := p.title if len(p.title) > 0 else TITLE
+	game_code := p.game_code if len(p.game_code) > 0 else GAME_CODE
+	maker_code := p.maker_code if len(p.maker_code) > 0 else MAKER_CODE
 
-	if err := rewrite_gba_header(p.filename, title); err != nil {
+	if err := rewrite_gba_header(p.filename, title, game_code, maker_code); err != nil {
 		fmt.eprintfln("could not rewrite header for %s: %v", p.filename, err)
 		return EXIT_FAILURE
 	}

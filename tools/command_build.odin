@@ -7,6 +7,7 @@ import "core:os"
 Build_Params :: struct {}
 
 // TODO convert build shell script to plain odin.
+// TODO define a small manifest for building a rom + setting header
 run_build :: proc(args: []string) -> int {
 	params: Build_Params
 	flags.parse_or_exit(&params, args, .Unix)
