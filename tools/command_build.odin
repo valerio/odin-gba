@@ -119,7 +119,7 @@ check_dependencies :: proc(verbose: bool) -> bool {
 
 join_path :: proc(parts: ..string) -> (path: string, ok: bool) {
 	joined, err := filepath.join(parts, context.temp_allocator)
-	return joined, err != nil
+	return joined, err == nil
 }
 
 load_manifest :: proc(
