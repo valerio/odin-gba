@@ -1,4 +1,4 @@
-package hw
+package gba
 
 // TODO: perhaps these are better off in package gba?
 

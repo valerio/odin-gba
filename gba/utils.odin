@@ -1,7 +1,6 @@
 package gba
 
 // TODO: this file is a grab-bag of utils as I come up with them, split into files as needed
-import "hw"
 
 
 foreign _ {
@@ -13,14 +12,7 @@ foreign _ {
 }
 
 
-SCREEN_WIDTH :: hw.SCREEN_WIDTH
-SCREEN_HEIGHT :: hw.SCREEN_HEIGHT
-SCREEN_PIXELS :: hw.SCREEN_PIXELS
-
 // Input helpers
-
-Button :: hw.Button
-Buttons :: hw.Buttons
 
 // Holds computed button state from previous and current polling.
 // This should be updated only once per frame, ideally just after
@@ -46,7 +38,7 @@ Inputs :: struct {
 // Reads the current status of inputs as a Buttons bitset.
 // For a more game-loop friendly interface, use `inputs_update()`.
 buttons_read :: proc "contextless" () -> Buttons {
-	raw := ~hw.load(hw.KEYINPUT) // 0: pressed, 1: released
+	raw := ~load(KEYINPUT) // 0: pressed, 1: released
 	return transmute(Buttons)raw
 }
 
@@ -61,16 +53,9 @@ inputs_update :: proc "contextless" (i: ^Inputs) {
 
 // Display helpers
 
-Color :: hw.Color
-
-COLOR_RED :: hw.COLOR_RED
-COLOR_GREEN :: hw.COLOR_GREEN
-COLOR_BLUE :: hw.COLOR_BLUE
-COLOR_YELLOW :: hw.COLOR_YELLOW
-
 store_pixel :: proc "contextless" (x, y: int, color: Color) {
 	index := y * SCREEN_WIDTH + x
-	hw.store(hw.VRAM_COLORS, index, color)
+	store(VRAM_COLORS, index, color)
 }
 
 fill_rect :: proc "contextless" (left, top, width, height: int, color: Color) {
@@ -90,10 +75,10 @@ fill_rect :: proc "contextless" (left, top, width, height: int, color: Color) {
 // requires to init interrupts first.
 busy_wait_for_vblank :: proc "contextless" () {
 	for {
-		if !hw.load(hw.DISPSTAT).vblank do break
+		if !load(DISPSTAT).vblank do break
 	}
 	for {
-		if hw.load(hw.DISPSTAT).vblank do break
+		if load(DISPSTAT).vblank do break
 	}
 }
 
@@ -104,8 +89,6 @@ wait_for_vblank :: proc "contextless" () {
 }
 
 
-Interrupt :: hw.Interrupt
-
 // A packed set of interrupts, as used in registers like
 // IE and IF.
 //
@@ -113,9 +96,6 @@ Interrupt :: hw.Interrupt
 // F E D C  B A 9 8  7 6 5 4  3 2 1 0
 // X X T Y  G F E D  S L K J  I C H V
 // ```
-Interrupts :: hw.Interrupts
-
-
 // Initializes the user interrupt handler (defined in assembly).
 // This should be called as early as possible, or ignored if not
 // using interrupt handlers.
@@ -130,33 +110,33 @@ interrupts_init :: proc "contextless" () {
 
 	// clear IF + BIOS flags.
 	interrupts_clear({.VBlank})
-	hw.store(hw.BIOS_IRQ_FLAGS, 0)
+	store(BIOS_IRQ_FLAGS, 0)
 
 	// enable Vblank IRQs
-	stat := hw.load(hw.DISPSTAT)
+	stat := load(DISPSTAT)
 	stat.vblank_irq_enable = true
-	hw.store(hw.DISPSTAT, stat)
+	store(DISPSTAT, stat)
 
 	interrupts_enable({.VBlank})
 }
 
 // disables all interrupts
 interrupts_main_disable :: proc "contextless" () {
-	hw.store(hw.IME, 0)
+	store(IME, 0)
 }
 
 // enables all interrupts
 interrupts_main_enable :: proc "contextless" () {
-	hw.store(hw.IME, 1)
+	store(IME, 1)
 }
 
 // sets which interrupts are en/disabled.
 interrupts_enable :: proc "contextless" (is: Interrupts) {
-	hw.store(hw.IE, transmute(u16)is)
+	store(IE, transmute(u16)is)
 }
 
 // clears specified interrupt flags, if active.
 interrupts_clear :: proc "contextless" (is: Interrupts) {
 	// 1 = clear, 0 = no change
-	hw.store(hw.IF, transmute(u16)is)
+	store(IF, transmute(u16)is)
 }

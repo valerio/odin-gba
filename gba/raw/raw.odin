@@ -1,8 +1,6 @@
 // A set of raw memory addresses and basic access helpers for GBA hardware.
 package raw
 
-import "base:intrinsics"
-
 // General memory regions
 
 BIOS_BASE :: uintptr(0x0000_0000)
@@ -142,25 +140,3 @@ REG_POSTFLG :: uintptr(0x0400_0300)
 REG_HALTCNT :: uintptr(0x0400_0301)
 
 BIOS_IRQ_FLAGS :: uintptr(0x0300_7ff8)
-
-// Generic volatile access. The type is explicit for loads and inferred from the
-// value for stores. Hardware access rules and alignment remain the caller's
-// responsibility.
-
-load :: proc "contextless" (
-	$T: typeid,
-	address: uintptr,
-) -> T where size_of(T) == 1 ||
-	size_of(T) == 2 ||
-	size_of(T) == 4 {
-	return intrinsics.volatile_load(cast(^T)address)
-}
-
-store :: proc "contextless" (
-	address: uintptr,
-	value: $T,
-) where size_of(T) == 1 ||
-	size_of(T) == 2 ||
-	size_of(T) == 4 {
-	intrinsics.volatile_store(cast(^T)address, value)
-}

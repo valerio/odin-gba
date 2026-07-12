@@ -1,7 +1,7 @@
 // A layer of types and utilities for working with GBA hardware.
 // For even lower-level access, package `raw` gives direct access with some
 // basic constants and helpers.
-package hw
+package gba
 
 import "base:intrinsics"
 import "raw"
