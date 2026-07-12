@@ -4,7 +4,6 @@
 package gba
 
 import "base:intrinsics"
-import "raw"
 
 SCREEN_WIDTH :: 240
 SCREEN_HEIGHT :: 160
@@ -16,14 +15,11 @@ COLOR_RED :: Color(0b11111)
 COLOR_GREEN :: Color(0b11111 << 5)
 COLOR_BLUE :: Color(0b11111 << 10)
 COLOR_YELLOW :: COLOR_RED | COLOR_GREEN
+COLOR_CYAN :: COLOR_GREEN | COLOR_BLUE
+COLOR_MAGENTA :: COLOR_RED | COLOR_BLUE
+COLOR_WHITE :: COLOR_RED | COLOR_GREEN | COLOR_BLUE
+COLOR_BLACK :: Color(0)
 
-// A typed view over VRAM as color data (for MODE 3 ONLY!).
-// Makes using the helpers nice and typed:
-// ```
-// store(VRAM_COLORS, index, COLOR_GREEN)
-// color: Color = load(VRAM_COLORS, index)
-// ```
-VRAM_COLORS :: cast(^[raw.VRAM_SIZE / size_of(Color)]Color)raw.VRAM_BASE
 
 store :: proc {
 	store_addr,

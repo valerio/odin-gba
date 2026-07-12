@@ -1,5 +1,7 @@
 package gba
 
+import "raw"
+
 // TODO: this file is a grab-bag of utils as I come up with them, split into files as needed
 
 
@@ -53,15 +55,24 @@ inputs_update :: proc "contextless" (i: ^Inputs) {
 
 // Display helpers
 
-store_pixel :: proc "contextless" (x, y: int, color: Color) {
+// A typed view over VRAM as color data (for MODE 3 ONLY).
+// Makes using the helpers nice and typed:
+// ```
+// store(VRAM_COLORS, index, COLOR_GREEN)
+// color: Color = load(VRAM_COLORS, index)
+// ```
+// Mode3 has only 240 * 160 pixels, writing elsewhere isn't good.
+VRAM_COLORS :: cast(^[SCREEN_WIDTH * SCREEN_HEIGHT / size_of(Color)]Color)raw.VRAM_BASE
+
+mode3_set_pixel :: proc "contextless" (x, y: int, color: Color) {
 	index := y * SCREEN_WIDTH + x
 	store(VRAM_COLORS, index, color)
 }
 
-fill_rect :: proc "contextless" (left, top, width, height: int, color: Color) {
+mode3_draw_rect :: proc "contextless" (left, top, width, height: int, color: Color) {
 	for y in top ..< top + height {
 		for x in left ..< left + width {
-			store_pixel(x, y, color)
+			mode3_set_pixel(x, y, color)
 		}
 	}
 }

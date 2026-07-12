@@ -6,3 +6,4 @@ build/
 *.gba
 *.save
 *.obj
+*.out

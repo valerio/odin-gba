@@ -14,13 +14,15 @@ BOX_SPEED :: 2
 gba_main :: proc "contextless" () {
 	gba.interrupts_init()
 	// TODO: nicer apis for display control/modes
-	gba.store(gba.DISPCNT, gba.Display_Control{mode = 3, bg2_enabled = true})
+	gba.store(gba.DISPCNT, gba.Display_Control{mode = .Mode_3, bg2_enabled = true})
 
-	gba.fill_rect(0, 0, gba.SCREEN_WIDTH, gba.SCREEN_HEIGHT, BACKGROUND)
+	gba.mode3_draw_rect(0, 0, gba.SCREEN_WIDTH, gba.SCREEN_HEIGHT, BACKGROUND)
 	x, y := 40, 64
 
-	gba.fill_rect(40, 64, BOX_SIZE, BOX_SIZE, MOVING_BOX_COLOR)
-	gba.fill_rect(160, 64, BOX_SIZE, BOX_SIZE, FIXED_BOX_COLOR)
+	gba.mode3_draw_rect(10, 100, 1000, 1000, gba.COLOR_CYAN)
+
+	gba.mode3_draw_rect(40, 64, BOX_SIZE, BOX_SIZE, MOVING_BOX_COLOR)
+	gba.mode3_draw_rect(160, 64, BOX_SIZE, BOX_SIZE, FIXED_BOX_COLOR)
 
 	input: gba.Inputs
 	for {
@@ -49,9 +51,9 @@ gba_main :: proc "contextless" () {
 		color_changed := .A in input.pressed || .A in input.released
 
 		if old_x != x || old_y != y || color_changed {
-			gba.fill_rect(old_x, old_y, BOX_SIZE, BOX_SIZE, BACKGROUND)
-			gba.fill_rect(160, 64, BOX_SIZE, BOX_SIZE, fixed_box_color)
-			gba.fill_rect(x, y, BOX_SIZE, BOX_SIZE, MOVING_BOX_COLOR)
+			gba.mode3_draw_rect(old_x, old_y, BOX_SIZE, BOX_SIZE, BACKGROUND)
+			gba.mode3_draw_rect(160, 64, BOX_SIZE, BOX_SIZE, fixed_box_color)
+			gba.mode3_draw_rect(x, y, BOX_SIZE, BOX_SIZE, MOVING_BOX_COLOR)
 		}
 	}
 }

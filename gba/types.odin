@@ -43,6 +43,16 @@ Interrupt :: enum u8 {
 // ```
 Interrupts :: distinct bit_set[Interrupt]
 
+
+Display_Mode :: enum (u8) {
+	Mode_0 = 0,
+	Mode_1 = 1,
+	Mode_2 = 2,
+	Mode_3 = 3,
+	Mode_4 = 4,
+	Mode_5 = 5,
+}
+
 // The display control register.
 //
 // ```
@@ -65,20 +75,20 @@ Interrupts :: distinct bit_set[Interrupt]
 //   E (V) - Enable Window 1
 //   F (W) - Enable Sprite Windows
 Display_Control :: bit_field u16 {
-	mode:                  u8   | 3,
-	gbc_mode:              bool | 1,
-	bitmap_start:          bool | 1,
-	force_process_hblank:  bool | 1,
-	sprite_dim:            bool | 1,
-	force_blank:           bool | 1,
-	bg0_enabled:           bool | 1,
-	bg1_enabled:           bool | 1,
-	bg2_enabled:           bool | 1,
-	bg3_enabled:           bool | 1,
-	sprites_enabled:       bool | 1,
-	window0_enabled:       bool | 1,
-	window1_enabled:       bool | 1,
-	sprite_window_enabled: bool | 1,
+	mode:                  Display_Mode | 3,
+	gbc_mode:              bool         | 1,
+	bitmap_start:          bool         | 1,
+	force_process_hblank:  bool         | 1,
+	sprite_dim:            bool         | 1,
+	force_blank:           bool         | 1,
+	bg0_enabled:           bool         | 1,
+	bg1_enabled:           bool         | 1,
+	bg2_enabled:           bool         | 1,
+	bg3_enabled:           bool         | 1,
+	sprites_enabled:       bool         | 1,
+	window0_enabled:       bool         | 1,
+	window1_enabled:       bool         | 1,
+	sprite_window_enabled: bool         | 1,
 }
 
 // DISPSTAT - General LCD Status (Read/Write) - 0x0400_0004
