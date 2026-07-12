@@ -1,11 +1,13 @@
 package main
 
 import "odin-gba:gba"
+import "odin-gba:gba/mem"
+import "odin-gba:gba/reg"
 
-BACKGROUND :: gba.RED
-MOVING_BOX_COLOR :: gba.GREEN
-FIXED_BOX_COLOR :: gba.BLUE
-SELECTED_COLOR :: gba.YELLOW
+BACKGROUND :: gba.COLOR_RED
+MOVING_BOX_COLOR :: gba.COLOR_GREEN
+FIXED_BOX_COLOR :: gba.COLOR_BLUE
+SELECTED_COLOR :: gba.COLOR_YELLOW
 
 BOX_SIZE :: 32
 BOX_SPEED :: 2
@@ -13,12 +15,7 @@ BOX_SPEED :: 2
 @(export)
 gba_main :: proc "contextless" () {
 	gba.interrupts_init()
-
-	dspcnt := gba.Display_Control {
-		mode        = 3,
-		bg2_enabled = true,
-	}
-	gba.store(gba.REG_DISPCNT, u16(dspcnt))
+	mem.store(reg.DISPCNT, reg.Display_Control{mode = 3, bg2_enabled = true})
 
 	gba.fill_rect(0, 0, gba.SCREEN_WIDTH, gba.SCREEN_HEIGHT, BACKGROUND)
 	x, y := 40, 64
