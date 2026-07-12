@@ -14,6 +14,7 @@ print_usage :: proc() {
 	fmt.println("usage: odin-gba <command> [options]")
 	fmt.println()
 	fmt.println("commands:")
+	fmt.println("  assetpack <png>   pack a png font -- todo")
 	fmt.println("  build <package>   build a ROM package")
 	fmt.println("  header            write a GBA header to a ROM")
 	fmt.println("  help              show this help")
@@ -29,6 +30,8 @@ main :: proc() {
 	exit_code := EXIT_SUCCESS
 
 	switch command {
+	case "assetpack":
+		exit_code = run_assetpack(os.args[1:])
 	case "build":
 		exit_code = run_build(os.args[1:])
 	case "header":
