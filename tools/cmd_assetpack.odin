@@ -23,7 +23,7 @@ Error :: union #shared_nil {
 }
 
 // TODO: support more sizes than just 8x8
-convert_font_1bpp :: proc(path: string, destination: string = "") -> Error {
+convert_font_1bpp :: proc(path: string, destination: string) -> Error {
 	img, err := png.load(path, {.alpha_add_if_missing})
 	if err != nil {
 		return err
@@ -56,17 +56,12 @@ convert_font_1bpp :: proc(path: string, destination: string = "") -> Error {
 		}
 	}
 
-	dest_path := destination
-	if dest_path == "" {
-		dest_path = strings.join({os.stem(path), ".bpp"}, "")
-		defer delete(dest_path)
-	}
-	return os.write_entire_file(dest_path, out[:])
+	return os.write_entire_file(destination, out[:])
 }
 
 Assetpack_Params :: struct {
 	source:      string `args:"pos=0,required" usage:"128x48 PNG font atlas to convert."`,
-	destination: string `args:"name=out" usage:"Output file; defaults to <source-name>.bpp in the current directory."`,
+	destination: string `args:"name=out" usage:"Output file; defaults to <source-name>.bpp beside the source file."`,
 }
 
 run_assetpack :: proc(args: []string) -> int {
@@ -74,16 +69,20 @@ run_assetpack :: proc(args: []string) -> int {
 	flags.parse_or_exit(&params, args, .Unix)
 	defer free_all(context.temp_allocator)
 
-	if err := convert_font_1bpp(params.source, params.destination); err != nil {
+	destination: string = params.destination
+	if destination == "" {
+		// TODO: propagate errors
+		abspath, _ := os.get_absolute_path(params.source, context.temp_allocator)
+		filename := strings.concatenate({os.stem(abspath), ".bpp"}, context.temp_allocator)
+		joined, _ := filepath.join({filepath.dir(abspath), filename}, context.temp_allocator)
+		destination = joined
+	}
+
+	if err := convert_font_1bpp(params.source, destination); err != nil {
 		fmt.eprintfln("error: could not pack font %s: %v", params.source, err)
 		return EXIT_FAILURE
 	}
 
-	destination := params.destination
-	if destination == "" {
-		destination = strings.join({os.stem(params.source), ".bpp"}, "")
-		defer delete(destination)
-	}
 	fmt.printfln("Packed font: %s", destination)
 	return EXIT_SUCCESS
 }
