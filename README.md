@@ -1,8 +1,12 @@
 # odin-gba
 
-A minimal way to build a GBA ROM using [Odin](https://odin-lang.org/).
+Tools and utilities to build basic GBA ROMs using [Odin](https://odin-lang.org/).
 
-![screenshot of a minimal rom running in mgba](./img/screen.png)
+ <p align="center">
+    <img src="./img/demo.gif" alt="Odin GBA example running in mGBA">
+    <br>
+    <sub>Example ROM running in mGBA on MacOS</sub>
+  </p>
 
 To actually build an executable GBA rom, the steps are (as of Odin `dev-2026-07`):
 
@@ -15,22 +19,30 @@ To actually build an executable GBA rom, the steps are (as of Odin `dev-2026-07`
 - patch the GBA header with the `odin-gba header` command
   - this sets the header according to GBATEK's docs
 
-## Building
+## Building the example ROM
+
+Generate packed assets (debug font):
+
+```sh
+odin run tools -- assetpack assets/font.png
+```
+
+Build the example:
 
 ```sh
 odin run tools -- build example
+Build succeeded!
+  ROM:        build/odin-gba-example.gba
+  Size:       2076 bytes (2.03 KiB, 0.0062% of 32 MiB)
+  Header:     ODIN_GBA / NICE / 00
+  Build time: 279.890292ms
 ```
 
-The example produces `build/odin-gba-example.gba`. To build the CLI once and use it separately:
-
-```sh
-odin build tools -out:build/odin-gba
-build/odin-gba build example
-```
+The example produces `build/odin-gba-example.gba`, header metadata is defined in [manifest.json](./example/manifest.json).
 
 ## Requirements
 
-Odin `dev-2026-07` (with `-bedrock` flag)
+Odin `dev-2026-07` (with `-bedrock` flag).
 
 [GNU Arm Embedded toolchain](https://developer.arm.com/tools-and-software/gnu-toolchain#Downloads), for the following:
 
@@ -45,5 +57,5 @@ Odin `dev-2026-07` (with `-bedrock` flag)
 To install the ARM toolchain:
 
 - MacOS: `brew install --cask gcc-arm-embedded`
-- Windows: TODO
-- Ubuntu/Debian: TODO
+- Ubuntu/Debian: `sudo apt install gcc-arm-none-eabi binutils-arm-none-eabi`
+- Windows: Grab [official installers](https://developer.arm.com/tools-and-software/gnu-toolchain#Downloads) and ensure they are in your `PATH`
