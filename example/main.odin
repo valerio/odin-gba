@@ -21,6 +21,7 @@ gba_main :: proc "contextless" () {
 	x, y := 40, 64
 
 	gba.mode3_draw_debug_text(60, 24, "HELLO, ODIN-GBA", TEXT_COLOR)
+	gba.mode3_draw_debug_text(30, 34, "d-pad moves, A yellows", TEXT_COLOR)
 	gba.mode3_draw_rect(40, 64, BOX_SIZE, BOX_SIZE, MOVING_BOX_COLOR)
 	gba.mode3_draw_rect(160, 64, BOX_SIZE, BOX_SIZE, FIXED_BOX_COLOR)
 
