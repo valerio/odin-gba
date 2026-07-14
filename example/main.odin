@@ -2,10 +2,11 @@ package main
 
 import "odin-gba:gba"
 
-BACKGROUND :: gba.COLOR_RED
+BACKGROUND :: gba.COLOR_BLACK
 MOVING_BOX_COLOR :: gba.COLOR_GREEN
 FIXED_BOX_COLOR :: gba.COLOR_BLUE
 SELECTED_COLOR :: gba.COLOR_YELLOW
+TEXT_COLOR :: gba.COLOR_WHITE
 
 BOX_SIZE :: 32
 BOX_SPEED :: 2
@@ -19,8 +20,7 @@ gba_main :: proc "contextless" () {
 	gba.mode3_draw_rect(0, 0, gba.SCREEN_WIDTH, gba.SCREEN_HEIGHT, BACKGROUND)
 	x, y := 40, 64
 
-	gba.mode3_draw_rect(10, 100, 1000, 1000, gba.COLOR_CYAN)
-
+	gba.mode3_draw_debug_text(60, 24, "HELLO, ODIN-GBA", TEXT_COLOR)
 	gba.mode3_draw_rect(40, 64, BOX_SIZE, BOX_SIZE, MOVING_BOX_COLOR)
 	gba.mode3_draw_rect(160, 64, BOX_SIZE, BOX_SIZE, FIXED_BOX_COLOR)
 
@@ -31,6 +31,7 @@ gba_main :: proc "contextless" () {
 
 		old_x, old_y := x, y
 
+		// TODO: support tri-states like in Tonc?
 		if .Left in input.held && x > 0 {
 			x -= BOX_SPEED
 		}

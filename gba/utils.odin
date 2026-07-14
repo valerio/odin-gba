@@ -65,11 +65,11 @@ inputs_update :: proc "contextless" (i: ^Inputs) {
 VRAM_COLORS :: cast(^[SCREEN_WIDTH * SCREEN_HEIGHT / size_of(Color)]Color)raw.VRAM_BASE
 
 mode3_set_pixel :: proc "contextless" (x, y: int, color: Color) {
-	index := y * SCREEN_WIDTH + x
-	store(VRAM_COLORS, index, color)
+	store(VRAM_COLORS, y * SCREEN_WIDTH + x, color)
 }
 
 mode3_draw_rect :: proc "contextless" (left, top, width, height: int, color: Color) {
+	// TODO: call into BIOS CpuFastSet
 	for y in top ..< top + height {
 		for x in left ..< left + width {
 			mode3_set_pixel(x, y, color)
@@ -77,6 +77,47 @@ mode3_draw_rect :: proc "contextless" (left, top, width, height: int, color: Col
 	}
 }
 
+// TODO: helpers for loading assets/fonts.
+// perhaps this could be generated code?
+DEBUG_FONT_FIRST_CHARACTER :: u8(' ')
+DEBUG_FONT_CHAR_COUNT :: 96
+DEBUG_FONT_CHAR_WIDTH :: 8
+DEBUG_FONT_CHAR_HEIGHT :: 8
+
+// 8x8 pixel font, 96 ASCII monochrome characters (1-bit palette)
+DEBUG_FONT :: #load("../assets/font.bpp")
+
+mode3_draw_debug_char :: proc "contextless" (x, y: int, char: u8, color: Color) {
+	if char < DEBUG_FONT_FIRST_CHARACTER ||
+	   char >= DEBUG_FONT_FIRST_CHARACTER + DEBUG_FONT_CHAR_COUNT {
+		return
+	}
+
+	font := DEBUG_FONT
+	offset := int(char - DEBUG_FONT_FIRST_CHARACTER) * DEBUG_FONT_CHAR_HEIGHT
+	for row in 0 ..< DEBUG_FONT_CHAR_HEIGHT {
+		pixels := font[offset + row]
+		for column in 0 ..< DEBUG_FONT_CHAR_WIDTH {
+			if pixels & (1 << u8(7 - column)) != 0 {
+				mode3_set_pixel(x + column, y + row, color)
+			}
+		}
+	}
+}
+
+// draws ASCII text starting at the coordinates (x,y), DISPCNT must be in mode 3.
+// This is software blitting, so slow and for debugging and simple demo only.
+// The font is a shitty hand drawn thing made by me, it adds ~1KB to executable size
+// when used.
+mode3_draw_debug_text :: proc "contextless" (x, y: int, text: string, color: Color) {
+	curr_x := x
+	// note: ranging over runes produces bigger executables due to UTF8 helper code
+	// TODO: add some vet/warning if the built ELF contains odin utf8 helpers.
+	for i in 0 ..< len(text) {
+		mode3_draw_debug_char(curr_x, y, text[i], color)
+		curr_x += DEBUG_FONT_CHAR_WIDTH
+	}
+}
 
 // General helpers
 
