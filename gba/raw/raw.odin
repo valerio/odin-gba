@@ -1,4 +1,4 @@
-// A set of raw memory addresses and basic access helpers for GBA hardware.
+// A set of raw memory addresses and definitions for GBA hardware.
 package raw
 
 // General memory regions

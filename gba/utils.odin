@@ -4,7 +4,7 @@ import "raw"
 
 // TODO: this file is a grab-bag of utils as I come up with them, split into files as needed
 
-
+// TODO: move into separate package?
 foreign _ {
 	@(link_name = "bios_vblank_intr_wait")
 	bios_vblank_intr_wait :: proc "c" () ---
@@ -15,6 +15,21 @@ foreign _ {
 
 
 // Input helpers
+
+Button :: enum u8 {
+	A      = 0,
+	B      = 1,
+	Select = 2,
+	Start  = 3,
+	Right  = 4,
+	Left   = 5,
+	Up     = 6,
+	Down   = 7,
+	R      = 8,
+	L      = 9,
+}
+
+Buttons :: distinct bit_set[Button]
 
 // Holds computed button state from previous and current polling.
 // This should be updated only once per frame, ideally just after
@@ -141,6 +156,25 @@ wait_for_vblank :: proc "contextless" () {
 }
 
 
+// Interrupt helpers
+
+Interrupt :: enum u8 {
+	VBlank = 0,
+	HBlank = 1,
+	VCount = 2,
+	Timer0 = 3,
+	Timer1 = 4,
+	Timer2 = 5,
+	Timer3 = 6,
+	Serial = 7,
+	DMA0   = 8,
+	DMA1   = 9,
+	DMA2   = 10,
+	DMA3   = 11,
+	Key    = 12,
+	Cart   = 13,
+}
+
 // A packed set of interrupts, as used in registers like
 // IE and IF.
 //
@@ -148,6 +182,9 @@ wait_for_vblank :: proc "contextless" () {
 // F E D C  B A 9 8  7 6 5 4  3 2 1 0
 // X X T Y  G F E D  S L K J  I C H V
 // ```
+Interrupts :: distinct bit_set[Interrupt]
+
+
 // Initializes the user interrupt handler (defined in assembly).
 // This should be called as early as possible, or ignored if not
 // using interrupt handlers.
@@ -156,7 +193,7 @@ interrupts_init :: proc "contextless" () {
 	interrupts_main_enable()
 	defer interrupts_main_disable()
 
-	// TODO: these should look more like extern stuff, let's put them
+	// TODO: these should look more like external stuff, let's put them
 	// in another package eventually.
 	bios_irq_install()
 

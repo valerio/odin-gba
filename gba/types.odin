@@ -1,48 +1,20 @@
 package gba
 
-// TODO: perhaps these are better off in package gba?
+SCREEN_WIDTH :: 240
+SCREEN_HEIGHT :: 160
+SCREEN_PIXELS :: SCREEN_WIDTH * SCREEN_HEIGHT
 
-Button :: enum u8 {
-	A      = 0,
-	B      = 1,
-	Select = 2,
-	Start  = 3,
-	Right  = 4,
-	Left   = 5,
-	Up     = 6,
-	Down   = 7,
-	R      = 8,
-	L      = 9,
-}
+// an rgb5 color
+Color :: distinct u16
 
-Buttons :: distinct bit_set[Button]
-
-Interrupt :: enum u8 {
-	VBlank = 0,
-	HBlank = 1,
-	VCount = 2,
-	Timer0 = 3,
-	Timer1 = 4,
-	Timer2 = 5,
-	Timer3 = 6,
-	Serial = 7,
-	DMA0   = 8,
-	DMA1   = 9,
-	DMA2   = 10,
-	DMA3   = 11,
-	Key    = 12,
-	Cart   = 13,
-}
-
-// A packed set of interrupts, as used in registers like
-// IE and IF.
-//
-// ```
-// F E D C  B A 9 8  7 6 5 4  3 2 1 0
-// X X T Y  G F E D  S L K J  I C H V
-// ```
-Interrupts :: distinct bit_set[Interrupt]
-
+COLOR_RED :: Color(0b11111)
+COLOR_GREEN :: Color(0b11111 << 5)
+COLOR_BLUE :: Color(0b11111 << 10)
+COLOR_YELLOW :: COLOR_RED | COLOR_GREEN
+COLOR_CYAN :: COLOR_GREEN | COLOR_BLUE
+COLOR_MAGENTA :: COLOR_RED | COLOR_BLUE
+COLOR_WHITE :: COLOR_RED | COLOR_GREEN | COLOR_BLUE
+COLOR_BLACK :: Color(0)
 
 Display_Mode :: enum (u8) {
 	Mode_0 = 0,
