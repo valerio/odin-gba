@@ -83,6 +83,50 @@ mode3_set_pixel :: proc "contextless" (x, y: int, color: Color) {
 	store(VRAM_COLORS, y * SCREEN_WIDTH + x, color)
 }
 
+// TODO: wip, having fun learning rasterizing
+// ideally here we use slope/line formulas without integer division, since that adds ~300B
+// to the binary size.
+mode3_draw_line :: proc "contextless" (x1, y1, x2, y2: int, color: Color) {
+	dx, dy := x2 - x1, y2 - y1
+	if dx == 0 {
+		// vertical
+		x := x1
+		start, end := min(y1, y2), max(y1, y2)
+		for y in start ..= end {
+			mode3_set_pixel(x, y, color)
+		}
+	} else if abs(dy) < abs(dx) {
+		// step x
+		// formula - y = y1 + ((x-x1) * dy) / dx
+		startx, endx := x1, x2
+		starty, endy := y1, y2
+		if startx > endx {
+			startx, endx = endx, startx
+			starty, endy = endy, starty
+		}
+		dx, dy := endx - startx, endy - starty
+
+		for x in startx ..= endx {
+			y := starty + ((x - startx) * dy) / dx
+			mode3_set_pixel(x, y, color)
+		}
+	} else {
+		// step y
+		startx, endx := x1, x2
+		starty, endy := y1, y2
+		if starty > endy {
+			startx, endx = endx, startx
+			starty, endy = endy, starty
+		}
+		dx, dy := endx - startx, endy - starty
+
+		for y in starty ..= endy {
+			x := startx + ((y - starty) * dx) / dy
+			mode3_set_pixel(x, y, color)
+		}
+	}
+}
+
 mode3_draw_rect :: proc "contextless" (left, top, width, height: int, color: Color) {
 	// TODO: call into BIOS CpuFastSet
 	for y in top ..< top + height {

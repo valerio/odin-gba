@@ -57,5 +57,10 @@ gba_main :: proc "contextless" () {
 			gba.mode3_draw_rect(160, 64, BOX_SIZE, BOX_SIZE, fixed_box_color)
 			gba.mode3_draw_rect(x, y, BOX_SIZE, BOX_SIZE, MOVING_BOX_COLOR)
 		}
+
+		if color_changed {
+			gba.mode3_draw_line(0, 0, gba.SCREEN_WIDTH, gba.SCREEN_HEIGHT, gba.COLOR_RED)
+			gba.mode3_draw_line(gba.SCREEN_WIDTH, 0, 0, gba.SCREEN_HEIGHT, gba.COLOR_BLUE)
+		}
 	}
 }
