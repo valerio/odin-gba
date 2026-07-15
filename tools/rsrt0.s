@@ -92,6 +92,36 @@ bios_vblank_intr_wait:
 .size bios_vblank_intr_wait, . - bios_vblank_intr_wait
 
 
+# Input: r0 = numerator, r1 = denominator
+# Output: r0 = numerator/denominator;
+#         r1 = numerator % denominator;
+#         r3 = abs (numerator/denominator)
+#
+# Odin can return multiple values via a pointer
+.global bios_div
+.type bios_div, %function
+.thumb_func
+bios_div:
+    # odin sets return pointer to r0, so we must preserve
+    # it outside scratch registers for div (r0-3)
+    push {r0}
+
+    # odin args are in r1, r2. Move to r0, r1 for the call
+    mov r0, r1
+    mov r1, r2
+    swi 0x06
+
+    # restore result ptr
+    pop {r2}
+    # results are in r0, r1, r3, we store them in order
+    # starting at [r2], so odin can return the 3 values
+    stmia r2!, {r0, r1, r3}
+
+    bx lr
+
+.size bios_div, . - bios_div
+
+
 # TODO: Add remaining BIOS functions
 # I sure would like to have inline asm here.
 

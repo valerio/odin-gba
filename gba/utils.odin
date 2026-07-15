@@ -11,6 +11,12 @@ foreign _ {
 
 	@(link_name = "bios_irq_install")
 	bios_irq_install :: proc "c" () ---
+
+	// Calls the GBA BIOS signed division routine.
+	// Generally considered not as optimized as what compilers generate.
+	// With Odin, using this is annoying but saves ~300B of code size.
+	@(link_name = "bios_div")
+	bios_div :: proc "c" (numerator, denominator: i32) -> (quotient, remainder, abs_quotient: i32) ---
 }
 
 
@@ -107,7 +113,9 @@ mode3_draw_line :: proc "contextless" (x1, y1, x2, y2: int, color: Color) {
 		dx, dy := endx - startx, endy - starty
 
 		for x in startx ..= endx {
-			y := starty + ((x - startx) * dy) / dx
+			// y := starty + ((x - startx) * dy) / dx
+			offset, _, _ := bios_div(i32((x - startx) * dy), i32(dx))
+			y := starty + int(offset)
 			mode3_set_pixel(x, y, color)
 		}
 	} else {
@@ -121,7 +129,9 @@ mode3_draw_line :: proc "contextless" (x1, y1, x2, y2: int, color: Color) {
 		dx, dy := endx - startx, endy - starty
 
 		for y in starty ..= endy {
-			x := startx + ((y - starty) * dx) / dy
+			// x := startx + ((y - starty) * dx) / dy
+			offset, _, _ := bios_div(i32((y - starty) * dx), i32(dy))
+			x := startx + int(offset)
 			mode3_set_pixel(x, y, color)
 		}
 	}
