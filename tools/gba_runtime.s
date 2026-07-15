@@ -1,5 +1,6 @@
-# Adapted from min-gba
-# https://github.com/rust-console/min-gba
+# Originally adapted from https://github.com/rust-console/min-gba (for startup sequence)
+#
+# ASM shims for GBA startup sequence and BIOS function calls
 
 .section .text._start, "ax"
 .global _start
@@ -128,5 +129,5 @@ bios_div:
 
 # marks the stack as not executable
 # gcc warns about this otherwise
-# build/rsrt0.o: missing .note.GNU-stack section implies executable stack
+# build/gba_runtime.o: missing .note.GNU-stack section implies executable stack
 .section .note.GNU-stack, "", %progbits

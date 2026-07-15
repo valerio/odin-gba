@@ -15,7 +15,7 @@ To actually build an executable GBA rom, the steps are (as of Odin `dev-2026-07`
 - build a freestanding ARM7TDMI ojbect with `odin build`
     - preferrably using `target-features:thumb-mode` for smaller size
     - use `-bedrock` for a stricter set of allowed features
-- link the object to a stubbed startup program ([tools/rsrt0.s](./tools/rsrt0.s))
+- link the object to a stubbed startup program ([tools/gba_runtime.s](./tools/gba_runtime.s))
     - use gc-sections to limit executable size
 - use a linker script that sets correct memory regions
 - patch the GBA header with the `odin-gba header` command

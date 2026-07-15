@@ -9,7 +9,7 @@ import "core:strings"
 import "core:time"
 
 LINKER_SCRIPT :: #load("linker_script.ld")
-STARTUP_ASSEMBLY :: #load("rsrt0.s")
+STARTUP_ASSEMBLY :: #load("gba_runtime.s")
 
 BUILD_DIR :: "build"
 RAW_DIR :: "raw"
@@ -216,8 +216,8 @@ make_build_paths :: proc(config: Build_Config) -> (paths: Build_Paths, ok: bool)
 	paths.raw_object = join_path(paths.raw_dir, "main.raw.obj") or_return
 	paths.main_object = join_path(BUILD_DIR, "main.o") or_return
 	paths.runtime = join_path(BUILD_DIR, "runtime.a") or_return
-	paths.startup_source = join_path(BUILD_DIR, "rsrt0.s") or_return
-	paths.startup_object = join_path(BUILD_DIR, "rsrt0.o") or_return
+	paths.startup_source = join_path(BUILD_DIR, "gba_runtime.s") or_return
+	paths.startup_object = join_path(BUILD_DIR, "gba_runtime.o") or_return
 	paths.linker_script = join_path(BUILD_DIR, "linker_script.ld") or_return
 	paths.elf = join_path(
 		BUILD_DIR,
