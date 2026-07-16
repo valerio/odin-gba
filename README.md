@@ -1,8 +1,8 @@
 # odin-gba
 
-Tools and utilities to build basic GBA ROMs using [Odin](https://odin-lang.org/).
+Tools and utilities to build basic GBA ROMs using the Odin programming language.
 
-Most functionality besides some basic mode 3 rendering and input is missing, but that's enough for some simple demos like:
+**This is a work in progress**: functionality besides basic mode 3 rendering and input is missing, but that's enough for some simple demos like:
 
  <p align="center">
     <img src="./img/demo.gif" alt="Odin GBA example running in mGBA">
@@ -10,16 +10,29 @@ Most functionality besides some basic mode 3 rendering and input is missing, but
     <sub>Example ROM running in mGBA on MacOS</sub>
   </p>
 
-To actually build an executable GBA rom, the steps are (as of Odin `dev-2026-07`):
+The repo also includes a CLI under [tools](./tools) for building and other utilites:
 
-- build a freestanding ARM7TDMI ojbect with `odin build`
-    - preferrably using `target-features:thumb-mode` for smaller size
-    - use `-bedrock` for a stricter set of allowed features
-- link the object to a stubbed startup program ([tools/gba_runtime.s](./tools/gba_runtime.s))
-    - use gc-sections to limit executable size
-- use a linker script that sets correct memory regions
-- patch the GBA header with the `odin-gba header` command
-    - this sets the header according to GBATEK's docs
+```sh
+odin-gba - build GBA ROMs with Odin
+
+usage: odin-gba <command> [options]
+
+commands:
+  assetpack <png>   pack a png font -- todo
+  build <package>   build a ROM package
+  header            write a GBA header to a ROM
+  help              show this help
+```
+
+## Requirements
+
+- [Odin](https://odin-lang.org/docs/install/) `dev-2026-07` or above.
+- [GNU Arm Embedded toolchain](https://developer.arm.com/tools-and-software/gnu-toolchain#Downloads)
+  - MacOS: `brew install --cask gcc-arm-embedded`
+  - Ubuntu/Debian: `sudo apt install gcc-arm-none-eabi binutils-arm-none-eabi`
+  - Windows: Grab [official installers](https://developer.arm.com/tools-and-software/gnu-toolchain#Downloads) and ensure they are in your `PATH`
+
+The ARM toolchain is needed for more direct assembler/linker access, and more flexibility in stripping executables down.
 
 ## Building the example ROM
 
@@ -41,23 +54,3 @@ Build succeeded!
 ```
 
 The example produces `build/odin-gba-example.gba`, header metadata is defined in [manifest.json](./example/manifest.json).
-
-## Requirements
-
-Odin `dev-2026-07` (with `-bedrock` flag).
-
-[GNU Arm Embedded toolchain](https://developer.arm.com/tools-and-software/gnu-toolchain#Downloads), for the following:
-
-- `arm-none-eabi-as` for assembler code
-- `arm-none-eabi-ar` for archiving SDK and runtime objects
-- `arm-none-eabi-gcc` for compile/linking
-    - current odin fails to cross-compile/link for freestanding arm32
-    - also needed for the linker script lifted from [min-gba](https://github.com/rust-console/min-gba)
-- `arm-none-eabi-nm` for validating the exported `gba_main` symbol
-- `arm-none-eabi-objcopy` for converting ELF to GBA rom
-
-To install the ARM toolchain:
-
-- MacOS: `brew install --cask gcc-arm-embedded`
-- Ubuntu/Debian: `sudo apt install gcc-arm-none-eabi binutils-arm-none-eabi`
-- Windows: Grab [official installers](https://developer.arm.com/tools-and-software/gnu-toolchain#Downloads) and ensure they are in your `PATH`
