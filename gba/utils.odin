@@ -89,50 +89,50 @@ mode3_set_pixel :: proc "contextless" (x, y: int, color: Color) {
 	store(VRAM_COLORS, y * SCREEN_WIDTH + x, color)
 }
 
-// TODO: wip, having fun learning rasterizing
-// ideally here we use slope/line formulas without integer division, since that adds ~300B
-// to the binary size.
+// draws a line using Bresenham's algorithm for drawing without division.
+// https://en.wikipedia.org/wiki/Bresenham%27s_line_algorithm
 mode3_draw_line :: proc "contextless" (x1, y1, x2, y2: int, color: Color) {
-	dx, dy := x2 - x1, y2 - y1
-	if dx == 0 {
-		// vertical
-		x := x1
+	dx, dy := abs(x2 - x1), -abs(y2 - y1)
+	signx, signy := 1 if x1 < x2 else -1, 1 if y1 < y2 else -1
+	error := dx + dy
+
+	// horizontal line
+	if y1 == y2 {
+		start, end := min(x1, x2), max(x1, x2)
+		index := y1 * SCREEN_WIDTH + start
+
+		for _ in start ..= end {
+			store(VRAM_COLORS, index, color)
+			index += 1
+		}
+		return
+	}
+
+	if x1 == x2 {
 		start, end := min(y1, y2), max(y1, y2)
-		for y in start ..= end {
-			mode3_set_pixel(x, y, color)
-		}
-	} else if abs(dy) < abs(dx) {
-		// step x
-		// formula - y = y1 + ((x-x1) * dy) / dx
-		startx, endx := x1, x2
-		starty, endy := y1, y2
-		if startx > endx {
-			startx, endx = endx, startx
-			starty, endy = endy, starty
-		}
-		dx, dy := endx - startx, endy - starty
+		index := start * SCREEN_WIDTH + x1
 
-		for x in startx ..= endx {
-			// y := starty + ((x - startx) * dy) / dx
-			offset, _, _ := bios_div(i32((x - startx) * dy), i32(dx))
-			y := starty + int(offset)
-			mode3_set_pixel(x, y, color)
+		for _ in start ..= end {
+			store(VRAM_COLORS, index, color)
+			index += SCREEN_WIDTH
 		}
-	} else {
-		// step y
-		startx, endx := x1, x2
-		starty, endy := y1, y2
-		if starty > endy {
-			startx, endx = endx, startx
-			starty, endy = endy, starty
-		}
-		dx, dy := endx - startx, endy - starty
+		return
+	}
 
-		for y in starty ..= endy {
-			// x := startx + ((y - starty) * dx) / dy
-			offset, _, _ := bios_div(i32((y - starty) * dx), i32(dy))
-			x := startx + int(offset)
-			mode3_set_pixel(x, y, color)
+	x, y := x1, y1
+	for {
+		mode3_set_pixel(x, y, color)
+		if y == y2 && x == x2 do break
+		e2 := error * 2 // this replaces a division by 2
+
+		if e2 >= dy {
+			error += dy
+			x += signx
+		}
+
+		if e2 <= dx {
+			error += dx
+			y += signy
 		}
 	}
 }
