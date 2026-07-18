@@ -10,7 +10,7 @@
   "profiles": [
     {
       "name": "default",
-      "checker_path": ["example", "tools"]
+      "checker_path": ["examples/00-mode3-input", "tools"]
     }
   ]
 }
