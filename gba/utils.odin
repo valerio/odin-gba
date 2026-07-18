@@ -340,8 +340,8 @@ Interrupts :: distinct bit_set[Interrupt]
 // using interrupt handlers.
 interrupts_init :: proc "contextless" () {
 	// keep all interrupts disabled during this procedure
-	interrupts_main_enable()
-	defer interrupts_main_disable()
+	interrupts_main_disable()
+	defer interrupts_main_enable()
 
 	// TODO: these should look more like external stuff, let's put them
 	// in another package eventually.
