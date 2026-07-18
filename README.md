@@ -34,7 +34,7 @@ commands:
 
 The ARM toolchain is needed for more direct assembler/linker access, and more flexibility in stripping executables down.
 
-## Building the example ROM
+## Building the example ROMs
 
 Generate packed assets (debug font):
 
@@ -42,15 +42,14 @@ Generate packed assets (debug font):
 odin run tools -- assetpack assets/font.png
 ```
 
-Build the example:
+Build a package as a full rom:
 
 ```sh
-odin run tools -- build example
-Build succeeded!
-  ROM:        build/odin-gba-example.gba
-  Size:       2076 bytes (2.03 KiB, 0.0062% of 32 MiB)
-  Header:     ODIN_GBA / NICE / 00
-  Build time: 279.890292ms
+odin run tools -- build examples/00-mode3-input
+odin run tools -- build examples/01-mode3-print
 ```
 
-The example produces `build/odin-gba-example.gba`, header metadata is defined in [manifest.json](./example/manifest.json).
+A full program needs to have:
+
+- an exported `gba_main` procedure
+- a `manifest.json` with desired header values

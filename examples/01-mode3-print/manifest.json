@@ -1,0 +1,8 @@
+{
+  "name": "odin-gba-mode3-print",
+  "header": {
+    "title": "MODE3_PRINT",
+    "gameCode": "TEXT",
+    "makerCode": "00"
+  }
+}
