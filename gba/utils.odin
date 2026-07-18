@@ -188,6 +188,102 @@ mode3_draw_debug_text :: proc "contextless" (x, y: int, text: string, color: Col
 	}
 }
 
+Debug_Arg :: union #no_nil {
+	string,
+	i32,
+	u32,
+	bool,
+}
+
+mode3_put_char :: proc "contextless" (x, y: ^int, char: u8) -> bool {
+	switch char {
+	case '\n':
+		x^ = 0
+		y^ += DEBUG_FONT_CHAR_HEIGHT
+		return y^ + DEBUG_FONT_CHAR_HEIGHT <= SCREEN_HEIGHT
+	case '\r':
+		x^ = 0
+		return true
+	}
+
+	if x^ + DEBUG_FONT_CHAR_WIDTH > SCREEN_WIDTH {
+		x^ = 0
+		y^ += DEBUG_FONT_CHAR_HEIGHT
+	}
+	if y^ + DEBUG_FONT_CHAR_HEIGHT > SCREEN_HEIGHT {
+		return false
+	}
+
+	mode3_draw_debug_char(x^, y^, char, COLOR_WHITE)
+	x^ += DEBUG_FONT_CHAR_WIDTH
+	return true
+}
+
+mode3_put_string :: proc "contextless" (x, y: ^int, value: string) -> bool {
+	for i in 0 ..< len(value) {
+		mode3_put_char(x, y, value[i]) or_return
+	}
+	return true
+}
+
+mode3_put_i32 :: proc "contextless" (x, y: ^int, value: i32) -> bool {
+	buf: [11]u8
+	i, remaining, neg := len(buf), value, value < 0
+	if neg do remaining = ~remaining + 1
+
+	for {
+		res, rem, _ := bios_div(remaining, 10)
+		if rem < 0 do rem = -rem
+		i -= 1
+		buf[i] = '0' + u8(rem)
+		remaining = res
+		if remaining == 0 do break
+	}
+	if neg {
+		i -= 1
+		buf[i] = '-'
+	}
+
+	return mode3_put_string(x, y, string(buf[i:]))
+}
+
+mode3_put_u32_hex :: proc "contextless" (x, y: ^int, value: u32) -> bool {
+	hex_digits := "0123456789ABCDEF"
+	buf: [9]u8
+	i, remaining := len(buf), value
+
+	for {
+		i -= 1
+		buf[i] = hex_digits[int(remaining & 0xf)]
+		remaining >>= 4
+		if remaining == 0 do break
+	}
+	i -= 1
+	buf[i] = '$'
+
+	return mode3_put_string(x, y, string(buf[i:]))
+}
+
+// prints the given arguments as text on screen.
+// This is meant for debugging purposes in mode 3, not an efficient
+// way of drawing text. For that, a tiled mode is better.
+mode3_print :: proc "contextless" (args: ..Debug_Arg) -> bool {
+	x, y := 0, 0
+	for arg in args {
+		switch value in arg {
+		case string:
+			mode3_put_string(&x, &y, value) or_return
+		case i32:
+			mode3_put_i32(&x, &y, value) or_return
+		case u32:
+			mode3_put_u32_hex(&x, &y, value) or_return
+		case bool:
+			mode3_put_string(&x, &y, "t" if value else "f") or_return
+		}
+	}
+	return true
+}
+
 // General helpers
 
 // Polls until VBLANK is set.
