@@ -5,7 +5,7 @@ import "odin-gba:gba"
 PAGE_COUNT :: 4
 BACKGROUND :: gba.COLOR_BLACK
 
-draw_page :: proc "contextless" (page: int) {
+draw_page :: proc "contextless" (page: int, randn: u32) {
 	gba.mode3_draw_rect(0, 0, gba.SCREEN_WIDTH, gba.SCREEN_HEIGHT, BACKGROUND)
 
 	switch page {
@@ -20,11 +20,8 @@ draw_page :: proc "contextless" (page: int) {
 			"text.\n",
 			"\n",
 			"Also numbers like: ",
-			i32(1),
-			" ",
-			i32(2),
-			" ",
-			i32(3),
+			i32(randn),
+			"\nhint: press A to randomize",
 			"\n\n\n\n\n\n\n",
 			"L/R PAGE 1/4",
 		)
@@ -52,14 +49,17 @@ draw_page :: proc "contextless" (page: int) {
 			"L/R PAGE 3/4",
 		)
 	case 3:
-		quotient, remainder, abs_quotient := gba.bios_div(-1337, 42)
+		dividend := i32(randn)
+		quotient, remainder, abs_quotient := gba.bios_div(dividend, 42)
 
 		gba.mode3_print(
 			"\n",
 			"BIOS DIVISION\n",
 			"=============\n",
 			"\n",
-			"What's -1337 / 42 ?\n",
+			"What's ",
+			dividend,
+			" / 42 ?\n",
 			"\n",
 			"quotient: ",
 			quotient,
@@ -80,8 +80,10 @@ gba_main :: proc "contextless" () {
 	gba.interrupts_init()
 	gba.store(gba.DISPCNT, gba.Display_Control{mode = .Mode_3, bg2_enabled = true})
 
+	rng := gba.rand_seed(42)
+	randn := gba.rand_next(&rng)
 	page := 0
-	draw_page(page)
+	draw_page(page, randn)
 
 	input: gba.Inputs
 	for {
@@ -89,12 +91,21 @@ gba_main :: proc "contextless" () {
 		gba.inputs_update(&input)
 
 		flip := 0
+		redraw := false
 		if .L in input.pressed do flip = -1
 		if .R in input.pressed do flip = 1
+		if .A in input.pressed {
+			randn = gba.rand_next(&rng)
+			redraw = true
+		}
 
 		if flip != 0 {
 			page = clamp(page + flip, 0, PAGE_COUNT - 1)
-			draw_page(page)
+			redraw = true
+		}
+
+		if redraw {
+			draw_page(page, randn)
 		}
 	}
 }
