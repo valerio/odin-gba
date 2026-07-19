@@ -284,6 +284,48 @@ mode3_print :: proc "contextless" (args: ..Debug_Arg) -> bool {
 	return true
 }
 
+// RNG state, get one with `rand_seed()` first.
+// Avoid using this directly, you can fuck things up
+// by e.g. setting 0 to one state, and then your rng
+// will be stuck in a loop, ask me how I know.
+Rng :: distinct [2]u32
+
+// seeds and returns RNG state.
+// uses splitmix64, as recommended by https://prng.di.unimi.it/
+// which guarantees no zero values in the state.
+rand_seed :: proc "contextless" (seed: u32) -> Rng {
+	mix :: proc "contextless" (value: u32) -> u32 {
+		x := value
+		x ~= x >> 16
+		x *= 0x85eb_ca6b
+		x ~= x >> 13
+		x *= 0xc2b2_ae35
+		x ~= x >> 16
+		return x
+	}
+
+	x := seed + 0x9e37_79b9
+	return {mix(x), mix(x + 0x9e37_79b9)}
+}
+
+// this is a xoroshiro64** PRNG implementation.
+// see https://prng.di.unimi.it/
+// reference implementation: https://prng.di.unimi.it/xoroshiro64starstar.c
+//
+// Get a seeded state with `rand_seed()` first.
+rand_next :: proc "contextless" (state: ^Rng) -> u32 {
+	rotl :: #force_inline proc "contextless" (x: u32, k: uint) -> u32 {
+		return (x << k) | (x >> (32 - k))
+	}
+
+	s0, s1 := state[0], state[1]
+	res := rotl(s0 * 0x9E3779BB, 5) * 5
+	s1 ~= s0
+	state[0] = rotl(s0, 26) ~ s1 ~ (s1 << 9)
+	state[1] = rotl(s1, 13)
+	return res
+}
+
 // General helpers
 
 // Polls until VBLANK is set.
