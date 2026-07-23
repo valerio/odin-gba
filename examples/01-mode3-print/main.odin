@@ -51,13 +51,14 @@ draw_page :: proc "contextless" (page: int, randn: u32) {
 	case 3:
 		dividend := i32(randn)
 		quotient, remainder, abs_quotient := gba.bios_div(dividend, 42)
+		sqrt_in := randn % 128
 
 		gba.mode3_print(
 			"\n",
-			"BIOS DIVISION\n",
-			"=============\n",
+			"BIOS FUNCTIONS\n",
+			"==============\n",
 			"\n",
-			"What's ",
+			"Div: ",
 			dividend,
 			" / 42 ?\n",
 			"\n",
@@ -68,7 +69,7 @@ draw_page :: proc "contextless" (page: int, randn: u32) {
 			"\nabs quotient: ",
 			abs_quotient,
 			"\n\n",
-			"^ this uses a BIOS routine!\n",
+			"sqrt(", i32(sqrt_in), ")", " = ", i32(gba.bios_sqrt(sqrt_in)),
 			"\n\n\n\n\n\n\n",
 			"L/R PAGE 4/4",
 		)

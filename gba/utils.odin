@@ -17,6 +17,9 @@ foreign _ {
 	// With Odin, using this is annoying but saves ~300B of code size.
 	@(link_name = "bios_div")
 	bios_div :: proc "c" (numerator, denominator: i32) -> (quotient, remainder, abs_quotient: i32) ---
+
+	@(link_name = "bios_sqrt")
+	bios_sqrt :: proc "c" (n: u32) -> u32 ---
 }
 
 

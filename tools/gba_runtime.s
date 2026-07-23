@@ -123,6 +123,15 @@ bios_div:
 .size bios_div, . - bios_div
 
 
+# Input: r0 = number
+# Output: r0 = sqrt(number)
+.global bios_sqrt
+.type bios_sqrt, %function
+.thumb_func
+bios_sqrt:
+    swi 0x08
+    bx lr
+
 # TODO: Add remaining BIOS functions
 # I sure would like to have inline asm here.
 
