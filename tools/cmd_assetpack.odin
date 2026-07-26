@@ -17,6 +17,7 @@ Color_RGB555 :: distinct u16
 Image_Format :: enum {
 	font_1bpp,
 	bitmap_4bpp,
+	bitmap_8bpp,
 }
 
 Asset_Load_Error :: enum {
@@ -221,9 +222,108 @@ test_convert_bitmap_4bpp :: proc(t: ^testing.T) {
 	testing.expect_value(t, info.size, i64(palette_size + pixel_data_size))
 }
 
+Image_8bpp :: struct {
+	width:   int,
+	height:  int,
+	palette: [dynamic; 256]Maybe(Color_RGB555),
+	pixels:  []u8,
+}
 
+// TODO: split load/packing and writing, then generalize to a few formats (4bpp/8bpp/...?)
+// Size should be serialized too, and test formats in mode 4.
+convert_bitmap_8bpp :: proc(path: string, destination: string) -> (err: Error) {
+	img := png.load(path, {.alpha_add_if_missing}, context.temp_allocator) or_return
+	if img.depth != 8 || img.channels != 4 {
+		return .Invalid_Bitmap
+	}
+
+	pixels := mem.slice_data_cast([]image.RGBA_Pixel, img.pixels.buf[:])
+	out := Image_8bpp {
+		width  = img.width,
+		height = img.height,
+		pixels = make([]u8, len(pixels), context.temp_allocator),
+	}
+
+	// first is transparent
+	append(&out.palette, nil)
+
+	// populate pixels and palette
+	px_loop: for pixel, i in pixels {
+		if pixel.a < 128 {
+			out.pixels[i] = 0
+			continue
+		}
+
+		color := convert_pixel_to_rgb555(pixel)
+		for palette_color, palette_idx in out.palette {
+			if color == palette_color {
+				out.pixels[i] = u8(palette_idx)
+				continue px_loop
+			}
+		}
+
+		if len(out.palette) == 256 {
+			return .Too_Many_Colors
+		}
+
+		append(&out.palette, color)
+		out.pixels[i] = u8(len(out.palette) - 1)
+	}
+
+	// fill palette
+	for len(out.palette) < 256 {
+		append(&out.palette, nil)
+	}
+
+	f := os.create(destination) or_return
+	defer os.close(f)
+
+	w: bufio.Writer
+	bufio.writer_init(&w, os.to_writer(f), allocator = context.temp_allocator)
+	defer bufio.writer_destroy(&w)
+
+	// write out the palette
+	for color in out.palette {
+		c := color.? or_else 0
+		bufio.writer_write_byte(&w, u8(c)) or_return
+		bufio.writer_write_byte(&w, u8(c >> 8)) or_return
+	}
+
+	// write out each pixel (as 8bit index into the palette)
+	for index in out.pixels {
+		bufio.writer_write_byte(&w, index) or_return
+	}
+
+	return bufio.writer_flush(&w)
+}
+
+@(test)
+test_convert_bitmap_8bpp :: proc(t: ^testing.T) {
+	temp_dir, temp_err := os.make_directory_temp(
+		"",
+		"odin-gba-assetpack-*",
+		context.temp_allocator,
+	)
+	assert(temp_err == nil)
+	defer os.remove_all(temp_dir)
+
+	destination, path_err := filepath.join({temp_dir, "lonk.bpp"}, context.temp_allocator)
+	assert(path_err == nil)
+	err := convert_bitmap_8bpp("assets/lonk.png", destination)
+	testing.expectf(t, err == nil, "error was %v", err)
+
+	info, stat_err := os.stat(destination, context.temp_allocator)
+	testing.expectf(t, stat_err == nil, "could not stat output: %v", stat_err)
+
+	palette_size := 256 * size_of(Color_RGB555)
+	pixel_data_size := 24 * 24
+	testing.expect_value(t, info.size, i64(palette_size + pixel_data_size))
+}
+
+
+// TODO: optional out path. Non-image formats.
 Assetpack_Params :: struct {
-	source:      string `args:"pos=0,required" usage:"128x48 PNG font atlas to convert."`,
+	source:      string `args:"pos=0,required" usage:"PNG image to convert"`,
 	destination: string `args:"name=out" usage:"Output file; defaults to <source-name>.bpp beside the source file."`,
 	format:      Image_Format `args:"name=format,required" usage:"Image format"`,
 }
@@ -250,6 +350,11 @@ run_assetpack :: proc(args: []string) -> int {
 		}
 	case .bitmap_4bpp:
 		if err := convert_bitmap_4bpp(params.source, destination); err != nil {
+			fmt.eprintfln("error: could not pack bitmap %s: %v", params.source, err)
+			return EXIT_FAILURE
+		}
+	case .bitmap_8bpp:
+		if err := convert_bitmap_8bpp(params.source, destination); err != nil {
 			fmt.eprintfln("error: could not pack bitmap %s: %v", params.source, err)
 			return EXIT_FAILURE
 		}
