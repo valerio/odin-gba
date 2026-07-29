@@ -105,6 +105,19 @@ Image_4bpp :: struct {
 	pixels:  []u8,
 }
 
+// an indexed bitmap image using a palette
+// of specified BPP (bits per pixel).
+//
+// The pixel themselves are indices into the palette, which is
+// an array of 16-bit rgb555 color values.
+// A color value of 0 is the transparent color, for the first entry,
+// or an unused color for any other.
+Palettized_Image :: struct($BPP: int) where BPP == 4 || BPP == 8 {
+	width, height: int,
+	palette:       [dynamic; 1 << u8(BPP)]Maybe(Color_RGB555),
+	pixels:        []u8,
+}
+
 
 convert_pixel_to_rgb555 :: proc(p: image.RGBA_Pixel) -> Color_RGB555 {
 	return Color_RGB555(u16(p.r >> 3) | u16(p.g >> 3) << 5 | u16(p.b >> 3) << 10)
@@ -133,13 +146,11 @@ convert_bitmap_4bpp :: proc(path: string, destination: string) -> (err: Error) {
 	}
 
 	pixels := mem.slice_data_cast([]image.RGBA_Pixel, img.pixels.buf[:])
-	out := Image_4bpp {
-		width   = img.width,
-		height  = img.height,
-		palette = [dynamic; 16]Maybe(Color_RGB555){},
-		pixels  = make([]u8, len(pixels), context.temp_allocator),
+	out := Palettized_Image(4) {
+		width  = img.width,
+		height = img.height,
+		pixels = make([]u8, len(pixels), context.temp_allocator),
 	}
-
 
 	// first is transparent
 	append(&out.palette, nil)
@@ -222,13 +233,6 @@ test_convert_bitmap_4bpp :: proc(t: ^testing.T) {
 	testing.expect_value(t, info.size, i64(palette_size + pixel_data_size))
 }
 
-Image_8bpp :: struct {
-	width:   int,
-	height:  int,
-	palette: [dynamic; 256]Maybe(Color_RGB555),
-	pixels:  []u8,
-}
-
 // TODO: split load/packing and writing, then generalize to a few formats (4bpp/8bpp/...?)
 // Size should be serialized too, and test formats in mode 4.
 convert_bitmap_8bpp :: proc(path: string, destination: string) -> (err: Error) {
@@ -238,7 +242,7 @@ convert_bitmap_8bpp :: proc(path: string, destination: string) -> (err: Error) {
 	}
 
 	pixels := mem.slice_data_cast([]image.RGBA_Pixel, img.pixels.buf[:])
-	out := Image_8bpp {
+	out := Palettized_Image(8) {
 		width  = img.width,
 		height = img.height,
 		pixels = make([]u8, len(pixels), context.temp_allocator),
