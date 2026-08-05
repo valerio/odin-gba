@@ -4,10 +4,17 @@ Tools and utilities to build basic GBA ROMs using the Odin programming language.
 
 **This is a work in progress**: functionality besides basic mode 3 rendering and input is missing, but that's enough for some simple demos like:
 
- <p align="center">
+  <p align="center">
     <img src="./img/demo.gif" alt="Odin GBA example running in mGBA">
     <br>
-    <sub>Example ROM running in mGBA on MacOS</sub>
+    <sub>Mode 3 input example running in mGBA on macOS</sub>
+  </p>
+
+  <p align="center">
+    <img src="./img/bios-functions-gba-sp.jpg" alt="Odin GBA BIOS functions example running on a Game Boy Advance SP" width="45%">
+    <img src="./img/bios-checksum-gba-sp.jpg" alt="Odin GBA BIOS checksum example running on a Game Boy Advance SP" width="45%">
+    <br>
+    <sub>BIOS functions example running on a real Game Boy Advance SP</sub>
   </p>
 
 The repo also includes a CLI under [tools](./tools) for building and other utilites:
