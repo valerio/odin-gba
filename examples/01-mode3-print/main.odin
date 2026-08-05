@@ -2,7 +2,7 @@ package main
 
 import "odin-gba:gba"
 
-PAGE_COUNT :: 4
+PAGE_COUNT :: 6
 BACKGROUND :: gba.COLOR_BLACK
 
 draw_page :: proc "contextless" (page: int, randn: u32) {
@@ -23,7 +23,7 @@ draw_page :: proc "contextless" (page: int, randn: u32) {
 			i32(randn),
 			"\nhint: press A to randomize",
 			"\n\n\n\n\n\n\n",
-			"L/R PAGE 1/4",
+			"L/R PAGE 1/6",
 		)
 	case 1:
 		gba.mode3_print(
@@ -34,7 +34,7 @@ draw_page :: proc "contextless" (page: int, randn: u32) {
 			"Dislike this font?\n",
 			"I'm sorry, I'm bad at drawing.\n",
 			"\n\n\n\n\n\n\n",
-			"L/R PAGE 2/4",
+			"L/R PAGE 2/6",
 		)
 	case 2:
 		gba.mode3_print(
@@ -46,7 +46,7 @@ draw_page :: proc "contextless" (page: int, randn: u32) {
 			"the one with the most tribal\n",
 			"tattoos on it.",
 			"\n\n\n\n\n\n\n\n",
-			"L/R PAGE 3/4",
+			"L/R PAGE 3/6",
 		)
 	case 3:
 		dividend := i32(randn)
@@ -69,9 +69,56 @@ draw_page :: proc "contextless" (page: int, randn: u32) {
 			"\nabs quotient: ",
 			abs_quotient,
 			"\n\n",
-			"sqrt(", i32(sqrt_in), ")", " = ", i32(gba.bios_sqrt(sqrt_in)),
+			"sqrt(",
+			i32(sqrt_in),
+			")",
+			" = ",
+			i32(gba.bios_sqrt(sqrt_in)),
 			"\n\n\n\n\n\n\n",
-			"L/R PAGE 4/4",
+			"L/R PAGE 4/6",
+		)
+	case 4:
+		x := i16(i32(randn & 0x7fff) - 0x4000)
+		y := i16(i32((randn >> 16) & 0x7fff) - 0x4000)
+		arc_tan := gba.bios_arc_tan(x)
+		arc_tan2 := gba.bios_arc_tan2(x, y)
+
+		gba.mode3_print(
+			"\n",
+			"BIOS TRIGONOMETRY\n",
+			"=================\n",
+			"\n",
+			"Inputs (signed 1.14 raw):\n",
+			"x: ",
+			i32(x),
+			"\ny: ",
+			i32(y),
+			"\n\n",
+			"ArcTan(x): ",
+			u32(u16(arc_tan)),
+			"\nArcTan2(x, y): ",
+			u32(arc_tan2),
+			"\n\n\n\n\n\n\n\n",
+			"L/R PAGE 5/6",
+		)
+	case 5:
+		checksum := gba.bios_get_checksum()
+
+		gba.mode3_print(
+			"\n",
+			"BIOS CHECKSUM\n",
+			"=============\n",
+			"\n\n",
+			"Current BIOS:\n",
+			checksum,
+			"\n\n",
+			"Expected values:\n",
+			"GBA / GBA SP: ",
+			u32(0xbaae187f),
+			"\nDS in GBA mode: ",
+			u32(0xbaae1880),
+			"\n\n\n\n\n\n\n",
+			"L/R PAGE 6/6",
 		)
 	}
 }

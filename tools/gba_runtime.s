@@ -82,7 +82,13 @@ bios_irq_install:
 
 .size bios_irq_install, .-bios_irq_install
 
-# BIOS function shims, so they can be called from Odin code.
+### BIOS function shims ###
+# Most shims are simple SWI calls, they could be moved to Odin code if
+# inline asm was supported (expected for 1.0).
+# Some of these shims are more involved, to support multiple return values
+# or Odin call conventions.
+
+
 .global bios_vblank_intr_wait
 .type bios_vblank_intr_wait, %function
 .thumb_func
@@ -91,6 +97,60 @@ bios_vblank_intr_wait:
     bx lr
 
 .size bios_vblank_intr_wait, . - bios_vblank_intr_wait
+
+
+# soft reset is non-returning, the infinite loop (b .) is just
+# being defensive and stopping execution in case there is a bug
+.global bios_soft_reset
+.type bios_soft_reset, %function
+.thumb_func
+bios_soft_reset:
+    swi 0x00
+    b .
+
+.size bios_soft_reset, . - bios_soft_reset
+
+
+# Input: r0 = regions/register groups to clear
+.global bios_register_ram_reset
+.type bios_register_ram_reset, %function
+.thumb_func
+bios_register_ram_reset:
+    swi 0x01
+    bx lr
+
+.size bios_register_ram_reset, . - bios_register_ram_reset
+
+
+.global bios_halt
+.type bios_halt, %function
+.thumb_func
+bios_halt:
+    swi 0x02
+    bx lr
+
+.size bios_halt, . - bios_halt
+
+
+.global bios_stop
+.type bios_stop, %function
+.thumb_func
+bios_stop:
+    swi 0x03
+    bx lr
+
+.size bios_stop, . - bios_stop
+
+
+# Input: r0 = discard old IRQ flags, r1 = IRQ flags to wait for
+.global bios_intr_wait
+.type bios_intr_wait, %function
+.thumb_func
+bios_intr_wait:
+    swi 0x04
+    bx lr
+
+.size bios_intr_wait, . - bios_intr_wait
 
 
 # Input: r0 = numerator, r1 = denominator
@@ -132,8 +192,187 @@ bios_sqrt:
     swi 0x08
     bx lr
 
-# TODO: Add remaining BIOS functions
-# I sure would like to have inline asm here.
+.size bios_sqrt, . - bios_sqrt
+
+
+# Input: r0 = signed 1.14 fixed-point tangent
+# Output: r0 = signed angle in the range -pi/2..pi/2
+.global bios_arc_tan
+.type bios_arc_tan, %function
+.thumb_func
+bios_arc_tan:
+    swi 0x09
+    bx lr
+
+.size bios_arc_tan, . - bios_arc_tan
+
+
+# Input: r0 = x, r1 = y
+# Output: r0 = angle, where 0x0000..0xffff represents 0..2*pi
+.global bios_arc_tan2
+.type bios_arc_tan2, %function
+.thumb_func
+bios_arc_tan2:
+    swi 0x0a
+    bx lr
+
+.size bios_arc_tan2, . - bios_arc_tan2
+
+
+# Input: r0 = source, r1 = destination, r2 = length/mode
+.global bios_cpu_set
+.type bios_cpu_set, %function
+.thumb_func
+bios_cpu_set:
+    swi 0x0b
+    bx lr
+
+.size bios_cpu_set, . - bios_cpu_set
+
+
+# Input: r0 = source, r1 = destination, r2 = length/mode
+.global bios_cpu_fast_set
+.type bios_cpu_fast_set, %function
+.thumb_func
+bios_cpu_fast_set:
+    swi 0x0c
+    bx lr
+
+.size bios_cpu_fast_set, . - bios_cpu_fast_set
+
+
+# Output: r0 = checksum of the GBA BIOS ROM
+.global bios_get_checksum
+.type bios_get_checksum, %function
+.thumb_func
+bios_get_checksum:
+    swi 0x0d
+    bx lr
+
+.size bios_get_checksum, . - bios_get_checksum
+
+
+# Input: r0 = sources, r1 = destinations, r2 = count
+.global bios_bg_affine_set
+.type bios_bg_affine_set, %function
+.thumb_func
+bios_bg_affine_set:
+    swi 0x0e
+    bx lr
+
+.size bios_bg_affine_set, . - bios_bg_affine_set
+
+
+# Input: r0 = sources, r1 = destinations, r2 = count, r3 = destination stride
+.global bios_obj_affine_set
+.type bios_obj_affine_set, %function
+.thumb_func
+bios_obj_affine_set:
+    swi 0x0f
+    bx lr
+
+.size bios_obj_affine_set, . - bios_obj_affine_set
+
+
+# Input: r0 = source, r1 = destination, r2 = unpack information
+.global bios_bit_unpack
+.type bios_bit_unpack, %function
+.thumb_func
+bios_bit_unpack:
+    swi 0x10
+    bx lr
+
+.size bios_bit_unpack, . - bios_bit_unpack
+
+
+.global bios_lz77_uncomp_wram
+.type bios_lz77_uncomp_wram, %function
+.thumb_func
+bios_lz77_uncomp_wram:
+    swi 0x11
+    bx lr
+
+.size bios_lz77_uncomp_wram, . - bios_lz77_uncomp_wram
+
+
+.global bios_lz77_uncomp_vram
+.type bios_lz77_uncomp_vram, %function
+.thumb_func
+bios_lz77_uncomp_vram:
+    swi 0x12
+    bx lr
+
+.size bios_lz77_uncomp_vram, . - bios_lz77_uncomp_vram
+
+
+.global bios_huff_uncomp
+.type bios_huff_uncomp, %function
+.thumb_func
+bios_huff_uncomp:
+    swi 0x13
+    bx lr
+
+.size bios_huff_uncomp, . - bios_huff_uncomp
+
+
+.global bios_rl_uncomp_wram
+.type bios_rl_uncomp_wram, %function
+.thumb_func
+bios_rl_uncomp_wram:
+    swi 0x14
+    bx lr
+
+.size bios_rl_uncomp_wram, . - bios_rl_uncomp_wram
+
+
+.global bios_rl_uncomp_vram
+.type bios_rl_uncomp_vram, %function
+.thumb_func
+bios_rl_uncomp_vram:
+    swi 0x15
+    bx lr
+
+.size bios_rl_uncomp_vram, . - bios_rl_uncomp_vram
+
+
+.global bios_diff_8bit_unfilter_wram
+.type bios_diff_8bit_unfilter_wram, %function
+.thumb_func
+bios_diff_8bit_unfilter_wram:
+    swi 0x16
+    bx lr
+
+.size bios_diff_8bit_unfilter_wram, . - bios_diff_8bit_unfilter_wram
+
+
+.global bios_diff_8bit_unfilter_vram
+.type bios_diff_8bit_unfilter_vram, %function
+.thumb_func
+bios_diff_8bit_unfilter_vram:
+    swi 0x17
+    bx lr
+
+.size bios_diff_8bit_unfilter_vram, . - bios_diff_8bit_unfilter_vram
+
+
+.global bios_diff_16bit_unfilter
+.type bios_diff_16bit_unfilter, %function
+.thumb_func
+bios_diff_16bit_unfilter:
+    swi 0x18
+    bx lr
+
+.size bios_diff_16bit_unfilter, . - bios_diff_16bit_unfilter
+
+
+.global bios_hard_reset
+.type bios_hard_reset, %function
+.thumb_func
+bios_hard_reset:
+    swi 0x26
+    b .
+
+.size bios_hard_reset, . - bios_hard_reset
 
 
 # marks the stack as not executable

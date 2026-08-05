@@ -4,25 +4,6 @@ import "raw"
 
 // TODO: this file is a grab-bag of utils as I come up with them, split into files as needed
 
-// TODO: move into separate package?
-foreign _ {
-	@(link_name = "bios_vblank_intr_wait")
-	bios_vblank_intr_wait :: proc "c" () ---
-
-	@(link_name = "bios_irq_install")
-	bios_irq_install :: proc "c" () ---
-
-	// Calls the GBA BIOS signed division routine.
-	// Generally considered not as optimized as what compilers generate.
-	// With Odin, using this is annoying but saves ~300B of code size.
-	@(link_name = "bios_div")
-	bios_div :: proc "c" (numerator, denominator: i32) -> (quotient, remainder, abs_quotient: i32) ---
-
-	@(link_name = "bios_sqrt")
-	bios_sqrt :: proc "c" (n: u32) -> u32 ---
-}
-
-
 // Input helpers
 
 Button :: enum u8 {
