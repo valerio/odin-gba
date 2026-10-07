@@ -17,6 +17,7 @@ print_usage :: proc() {
 	fmt.println("  assetpack <png>   pack a png font -- todo")
 	fmt.println("  build <package>   build a ROM package")
 	fmt.println("  header            write a GBA header to a ROM")
+	fmt.println("  testpng <png>     generate a checkerboard PNG for asset tests")
 	fmt.println("  help              show this help")
 }
 
@@ -36,6 +37,8 @@ main :: proc() {
 		exit_code = run_build(os.args[1:])
 	case "header":
 		exit_code = run_header(os.args[1:])
+	case "testpng":
+		exit_code = run_testpng(os.args[1:])
 	case "help", "-h", "--help":
 		print_usage()
 	case:

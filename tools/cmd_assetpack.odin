@@ -220,17 +220,38 @@ test_convert_bitmap_4bpp :: proc(t: ^testing.T) {
 	assert(temp_err == nil)
 	defer os.remove_all(temp_dir)
 
-	destination, path_err := filepath.join({temp_dir, "lonk.bpp"}, context.temp_allocator)
+	source, source_path_err := filepath.join({temp_dir, "valid-4bpp.png"}, context.temp_allocator)
+	assert(source_path_err == nil)
+	generate_err := generate_checkerboard_png(
+		source,
+		{width = 4, height = 4, color_count = 15, cell_size = 1, transparent = true},
+	)
+	testing.expectf(t, generate_err == nil, "could not generate source image: %v", generate_err)
+
+	destination, path_err := filepath.join({temp_dir, "valid-4bpp.bpp"}, context.temp_allocator)
 	assert(path_err == nil)
-	err := convert_bitmap_4bpp("assets/lonk.png", destination)
+	err := convert_bitmap_4bpp(source, destination)
 	testing.expectf(t, err == nil, "error was %v", err)
 
 	info, stat_err := os.stat(destination, context.temp_allocator)
 	testing.expectf(t, stat_err == nil, "could not stat output: %v", stat_err)
 
 	palette_size := 16 * size_of(Color_RGB555)
-	pixel_data_size := ((24 + 1) / 2) * 24
+	pixel_data_size := 4 / 2 * 4
 	testing.expect_value(t, info.size, i64(palette_size + pixel_data_size))
+
+	too_many_source, too_many_path_err := filepath.join(
+		{temp_dir, "too-many-4bpp.png"},
+		context.temp_allocator,
+	)
+	assert(too_many_path_err == nil)
+	generate_err = generate_checkerboard_png(
+		too_many_source,
+		{width = 17, height = 1, color_count = 16, cell_size = 1, transparent = true},
+	)
+	testing.expectf(t, generate_err == nil, "could not generate source image: %v", generate_err)
+	err = convert_bitmap_4bpp(too_many_source, destination)
+	testing.expect_value(t, err, Error(Asset_Load_Error.Too_Many_Colors))
 }
 
 // TODO: split load/packing and writing, then generalize to a few formats (4bpp/8bpp/...?)
@@ -311,17 +332,38 @@ test_convert_bitmap_8bpp :: proc(t: ^testing.T) {
 	assert(temp_err == nil)
 	defer os.remove_all(temp_dir)
 
-	destination, path_err := filepath.join({temp_dir, "lonk.bpp"}, context.temp_allocator)
+	source, source_path_err := filepath.join({temp_dir, "valid-8bpp.png"}, context.temp_allocator)
+	assert(source_path_err == nil)
+	generate_err := generate_checkerboard_png(
+		source,
+		{width = 16, height = 16, color_count = 255, cell_size = 1, transparent = true},
+	)
+	testing.expectf(t, generate_err == nil, "could not generate source image: %v", generate_err)
+
+	destination, path_err := filepath.join({temp_dir, "valid-8bpp.bpp"}, context.temp_allocator)
 	assert(path_err == nil)
-	err := convert_bitmap_8bpp("assets/lonk.png", destination)
+	err := convert_bitmap_8bpp(source, destination)
 	testing.expectf(t, err == nil, "error was %v", err)
 
 	info, stat_err := os.stat(destination, context.temp_allocator)
 	testing.expectf(t, stat_err == nil, "could not stat output: %v", stat_err)
 
 	palette_size := 256 * size_of(Color_RGB555)
-	pixel_data_size := 24 * 24
+	pixel_data_size := 16 * 16
 	testing.expect_value(t, info.size, i64(palette_size + pixel_data_size))
+
+	too_many_source, too_many_path_err := filepath.join(
+		{temp_dir, "too-many-8bpp.png"},
+		context.temp_allocator,
+	)
+	assert(too_many_path_err == nil)
+	generate_err = generate_checkerboard_png(
+		too_many_source,
+		{width = 257, height = 1, color_count = 256, cell_size = 1, transparent = true},
+	)
+	testing.expectf(t, generate_err == nil, "could not generate source image: %v", generate_err)
+	err = convert_bitmap_8bpp(too_many_source, destination)
+	testing.expect_value(t, err, Error(Asset_Load_Error.Too_Many_Colors))
 }
 
 
