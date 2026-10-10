@@ -18,6 +18,7 @@ Image_Format :: enum {
 	font_1bpp,
 	bitmap_4bpp,
 	bitmap_8bpp,
+	bitmap_16bpp,
 }
 
 Asset_Load_Error :: enum {
@@ -118,6 +119,8 @@ Palettized_Image :: struct($BPP: int) where BPP == 4 || BPP == 8 {
 	pixels:        []u8,
 }
 
+// TODO: to support tiled modes 0-2 and sprites, extract shared logic from the 4bpp/8bpp converters.
+// The current converters write flat pixel data; tiled formats need tiles + map instead.
 
 convert_pixel_to_rgb555 :: proc(p: image.RGBA_Pixel) -> Color_RGB555 {
 	return Color_RGB555(u16(p.r >> 3) | u16(p.g >> 3) << 5 | u16(p.b >> 3) << 10)
@@ -366,6 +369,59 @@ test_convert_bitmap_8bpp :: proc(t: ^testing.T) {
 	testing.expect_value(t, err, Error(Asset_Load_Error.Too_Many_Colors))
 }
 
+// A direct-copy 16bpp RGB555 framebuffer for Mode 3 (240x160).
+// Each pixel is a u16 in RGB555 format, written little-endian.
+// Total size: 240 * 160 * 2 = 76800 bytes.
+//
+// TODO: this is Mode 3/5 specific, will probably need a tiled/map version later.
+convert_bitmap_16bpp :: proc(path: string, destination: string) -> (err: Error) {
+	img := png.load(path, {.alpha_add_if_missing}, context.temp_allocator) or_return
+	if img.width != 240 || img.height != 160 {
+		return .Invalid_Size
+	}
+	if img.depth != 8 || img.channels != 4 {
+		return .Invalid_Bitmap
+	}
+
+	pixels := mem.slice_data_cast([]image.RGBA_Pixel, img.pixels.buf[:])
+	out := make([]u8, len(pixels) * size_of(Color_RGB555), context.temp_allocator)
+	for pixel, i in pixels {
+		color := convert_pixel_to_rgb555(pixel)
+		out[i * 2] = u8(color)
+		out[i * 2 + 1] = u8(color >> 8)
+	}
+
+	return os.write_entire_file(destination, out)
+}
+
+@(test)
+test_convert_bitmap_16bpp :: proc(t: ^testing.T) {
+	temp_dir, temp_err := os.make_directory_temp(
+		"",
+		"odin-gba-assetpack-*",
+		context.temp_allocator,
+	)
+	assert(temp_err == nil)
+	defer os.remove_all(temp_dir)
+
+	source, source_path_err := filepath.join({temp_dir, "valid-16bpp.png"}, context.temp_allocator)
+	assert(source_path_err == nil)
+	generate_err := generate_checkerboard_png(
+		source,
+		{width = 240, height = 160, color_count = 16, cell_size = 16, rainbow = true},
+	)
+	testing.expectf(t, generate_err == nil, "could not generate source image: %v", generate_err)
+
+	destination, path_err := filepath.join({temp_dir, "valid-16bpp.bpp"}, context.temp_allocator)
+	assert(path_err == nil)
+	err := convert_bitmap_16bpp(source, destination)
+	testing.expectf(t, err == nil, "error was %v", err)
+
+	info, stat_err := os.stat(destination, context.temp_allocator)
+	testing.expectf(t, stat_err == nil, "could not stat output: %v", stat_err)
+	testing.expect_value(t, info.size, i64(240 * 160 * size_of(Color_RGB555)))
+}
+
 
 // TODO: optional out path. Non-image formats.
 Assetpack_Params :: struct {
@@ -401,6 +457,11 @@ run_assetpack :: proc(args: []string) -> int {
 		}
 	case .bitmap_8bpp:
 		if err := convert_bitmap_8bpp(params.source, destination); err != nil {
+			fmt.eprintfln("error: could not pack bitmap %s: %v", params.source, err)
+			return EXIT_FAILURE
+		}
+	case .bitmap_16bpp:
+		if err := convert_bitmap_16bpp(params.source, destination); err != nil {
 			fmt.eprintfln("error: could not pack bitmap %s: %v", params.source, err)
 			return EXIT_FAILURE
 		}
