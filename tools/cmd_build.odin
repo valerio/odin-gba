@@ -27,6 +27,7 @@ GNU_ARM_TOOLS :: []string {
 Build_Params :: struct {
 	package_path: string `args:"pos=0,required" usage:"Odin package containing the ROM entry point."`,
 	verbose:      bool `usage:"Print each build step and command."`,
+	debug:        bool `usage:"Enable runtime assertions and debug information."`,
 }
 
 Build_Manifest :: struct {
@@ -44,11 +45,13 @@ Build_Config :: struct {
 	title:        string,
 	game_code:    string,
 	maker_code:   string,
+	debug:        bool,
 }
 
 Build_Paths :: struct {
 	raw_dir:        string,
 	raw_object:     string,
+	dependencies:   string,
 	main_object:    string,
 	runtime:        string,
 	startup_source: string,
@@ -214,6 +217,7 @@ make_build_config :: proc(
 make_build_paths :: proc(config: Build_Config) -> (paths: Build_Paths, ok: bool) {
 	paths.raw_dir = join_path(BUILD_DIR, RAW_DIR) or_return
 	paths.raw_object = join_path(paths.raw_dir, "main.raw.obj") or_return
+	paths.dependencies = join_path(paths.raw_dir, "dependencies.json") or_return
 	paths.main_object = join_path(BUILD_DIR, "main.o") or_return
 	paths.runtime = join_path(BUILD_DIR, "runtime.a") or_return
 	paths.startup_source = join_path(BUILD_DIR, "gba_runtime.s") or_return
@@ -290,20 +294,24 @@ compile_package :: proc(config: Build_Config, paths: Build_Paths, verbose: bool)
 		"-bedrock",
 		"-build-mode:obj",
 		"-target:freestanding_arm32",
-		"-target-features:thumb-mode",
+		// ARM7TDMI aligns unaligned word stores down, corrupting adjacent fields.
+		// strict-align requires byte/halfword sequences for accesses without word alignment.
+		"-target-features:thumb-mode,strict-align",
 		"-microarch:arm7tdmi",
 		"-no-entry-point",
 		"-no-crt",
 		"-default-to-nil-allocator",
-		"-disable-assert",
 		"-no-bounds-check",
 		"-no-type-assert",
 		"-no-thread-local",
 		"-use-separate-modules",
 		"-thread-count:1", // workaround for a segfault on linux, fixed in https://github.com/odin-lang/Odin/pull/6997
 		"-o:size",
+		"-export-dependencies:json",
+		fmt.tprintf("-export-dependencies-file:%s", paths.dependencies),
 		fmt.tprintf("-out:%s", paths.raw_object),
 	)
+	append(&command, "-debug" if config.debug else "-disable-assert")
 	return run_command(
 		fmt.tprintf("compiling Odin package %s", config.package_path),
 		command[:],
@@ -526,6 +534,7 @@ execute_build :: proc(config: Build_Config, paths: Build_Paths, verbose: bool) -
 	check_dependencies(verbose) or_return
 	prepare_build_directory(paths, verbose) or_return
 	compile_package(config, paths, verbose) or_return
+	validate_build_dependencies(paths.dependencies) or_return
 
 	game_object, dependency_objects := collect_objects(
 		paths,
@@ -581,6 +590,7 @@ run_build :: proc(args: []string) -> int {
 	if !config_ok {
 		return EXIT_FAILURE
 	}
+	config.debug = params.debug
 	paths, paths_ok := make_build_paths(config)
 	if !paths_ok {
 		return EXIT_FAILURE
@@ -595,4 +605,45 @@ run_build :: proc(args: []string) -> int {
 	}
 
 	return EXIT_SUCCESS
+}
+
+validate_build_dependencies :: proc(path: string) -> bool {
+	data, err := os.read_entire_file(path, context.temp_allocator)
+	if err != nil {
+		fmt.eprintfln("error: could not read compiler dependencies: %v", err)
+		return false
+	}
+	dependencies: struct {
+		source_files, load_files: []string,
+	}
+	if err := json.unmarshal(data, &dependencies, allocator = context.temp_allocator); err != nil {
+		fmt.eprintfln("error: invalid compiler dependencies: %v", err)
+		return false
+	}
+	return validate_build_assets(dependencies.load_files)
+}
+
+validate_build_assets :: proc(assets: []string) -> bool {
+	for path in assets {
+		is_tiles := strings.has_suffix(path, ".tiles.bin")
+		is_tilemap := strings.has_suffix(path, ".tilemap.bin")
+		if !is_tiles && !is_tilemap do continue
+		data, err := os.read_entire_file(path, context.temp_allocator)
+		if err != nil {
+			fmt.eprintfln("error: could not read asset %s: %v", path, err)
+			return false
+		}
+		valid := false
+		switch {
+		case is_tiles:
+			valid = validate_tile_asset(data)
+		case is_tilemap:
+			valid = validate_tilemap_asset(data)
+		}
+		if !valid {
+			fmt.eprintfln("error: invalid packed asset: %s", path)
+			return false
+		}
+	}
+	return true
 }

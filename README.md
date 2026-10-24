@@ -46,7 +46,7 @@ The ARM toolchain is needed for more direct assembler/linker access, and more fl
 Generate packed assets (debug font):
 
 ```sh
-odin run tools -- assetpack assets/font.png
+odin run tools -- assetpack assets/font.png --format font_1bpp
 ```
 
 Build a package as a full rom:

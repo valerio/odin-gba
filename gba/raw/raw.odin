@@ -11,12 +11,28 @@ EWRAM_SIZE :: 256 * 1024
 IWRAM_BASE :: uintptr(0x0300_0000)
 IWRAM_SIZE :: 32 * 1024
 
+// Palette RAM (1KB total)
 PALETTE_RAM_BASE :: uintptr(0x0500_0000)
 PALETTE_RAM_SIZE :: 1024
+PALETTE_BG_BASE :: uintptr(0x0500_0000) // 256 colors for backgrounds
+PALETTE_OBJ_BASE :: uintptr(0x0500_0200) // 256 colors for sprites
+PALETTE_SIZE :: 256
+
+// VRAM (96KB total)
 VRAM_BASE :: uintptr(0x0600_0000)
 VRAM_SIZE :: 96 * 1024
+VRAM_OBJ_BASE :: uintptr(0x0601_0000) // 32KB for sprites (charblocks 4-5)
+
+// VRAM sub-blocks
+CHARBLOCK_SIZE :: 16 * 1024 // 16KB per charblock
+SCREENBLOCK_SIZE :: 2 * 1024 // 2KB per screenblock
+TILE_4BPP_SIZE :: 32 // 8x8 tile, 4 bits per pixel = 32 bytes
+
+// OAM (1KB, 128 sprites)
 OAM_BASE :: uintptr(0x0700_0000)
 OAM_SIZE :: 1024
+OAM_SPRITE_COUNT :: 128
+OAM_ENTRY_SIZE :: 8 // 3 x u16 attributes + 1 x u16 filler
 
 SRAM_BASE :: uintptr(0x0e00_0000)
 SRAM_SIZE :: 64 * 1024

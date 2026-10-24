@@ -1,11 +1,9 @@
-// A layer of types and utilities for working with GBA hardware.
-// For even lower-level access, package `raw` gives direct access with some
-// basic constants and helpers.
 package gba
 
 import "base:intrinsics"
 
-// helper for volatile stores.
+// TODO: show assertion messages and file/line on-device in debug builds before halting.
+
 // Stores must be volatile, otherwise the compiler can optimize them away.
 store :: proc {
 	store_addr,
@@ -20,7 +18,6 @@ store_array :: proc "contextless" (region: ^[$N]$T, index: int, value: T) {
 	intrinsics.volatile_store(&region^[index], value)
 }
 
-// helper for volatile loads.
 // Loads must be volatile, otherwise the compiler can optimize them away.
 load :: proc {
 	load_addr,
@@ -33,4 +30,12 @@ load_addr :: proc "contextless" (addr: ^$T) -> T {
 
 load_array :: proc "contextless" (region: ^[$N]$T, index: int) -> T {
 	return intrinsics.volatile_load(&region^[index])
+}
+
+// For VRAM, palettes, and OAM, where byte writes don't work.
+store_halfwords :: proc "contextless" (destination: [^]u16, data: []u8) {
+	assert_contextless(len(data) & 1 == 0, "odd halfword data length")
+	for i := 0; i < len(data); i += 2 {
+		store_addr(&destination[i / 2], u16(data[i]) | u16(data[i + 1]) << 8)
+	}
 }

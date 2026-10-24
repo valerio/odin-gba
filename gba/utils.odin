@@ -310,6 +310,48 @@ rand_next :: proc "contextless" (state: ^Rng) -> u32 {
 	return res
 }
 
+// Generates a random integer in a given range.
+// This uses no division/modulo, which makes it faster, but biased, i.e. the chances
+// of drawing a number in the range are not equal.
+// If you need a truly random/uniform distribution, use rand_range_uniform, but be
+// aware that it has a potential performance cost.
+//
+// Based on the work of Daniel Lemire (fast random integer generation in an interval)
+// https://www.pcg-random.org/posts/bounded-rands.html (Integer Multiplication)
+rand_range :: proc "contextless" (state: ^Rng, min, max: int) -> int {
+	assert_contextless(
+		min >= -0x8000_0000 && max <= 0x7fff_ffff && min <= max,
+		"invalid random range",
+	)
+	width := u64(i64(max) - i64(min)) + 1
+	offset := (u64(rand_next(state)) * width) >> 32
+	return int(i64(min) + i64(offset))
+}
+
+// Same inclusive bounds as rand_range, but without bias.
+// This means each number in the range has equal chance to be drawn, but the
+// cost is that this is done in a loop, so the time it takes to run is variable.
+// Avoid this if you need to generate many random numbers quickly.
+//
+// https://www.pcg-random.org/posts/bounded-rands.html (Bitmask with Rejection)
+rand_range_uniform :: proc "contextless" (state: ^Rng, min, max: int) -> int {
+	assert_contextless(
+		min >= -0x8000_0000 && max <= 0x7fff_ffff && min <= max,
+		"invalid random range",
+	)
+	last := u32(i64(max) - i64(min))
+	mask := last
+	mask |= mask >> 1
+	mask |= mask >> 2
+	mask |= mask >> 4
+	mask |= mask >> 8
+	mask |= mask >> 16
+	for {
+		offset := rand_next(state) & mask
+		if offset <= last do return int(i64(min) + i64(offset))
+	}
+}
+
 // General helpers
 
 // Polls until VBLANK is set.
