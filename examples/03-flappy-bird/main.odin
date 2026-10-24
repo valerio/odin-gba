@@ -18,11 +18,17 @@ PLAY_BOTTOM :: SCREEN_H - GROUND_H
 GROUND_ROW :: PLAY_BOTTOM / 8
 
 BIRD_X :: 60
-// Inset from the sprite canvas so transparent padding and feather tips are forgiving.
+// Keep the hitbox inside the artwork so transparent edges and feather tips don't kill the bird.
 BIRD_HIT_X :: 2
 BIRD_HIT_Y :: 2
 BIRD_HIT_W :: 12
 BIRD_HIT_H :: 12
+
+// Fixed point fractions to avoid float math.
+// At shift 8, it means 256 is a whole pixel, 128 is half (0.5) and so on.
+// Useful for keeping physics fully on integer math
+// TODO: add more helpers in the sdk!
+FP_SHIFT :: 8
 GRAVITY :: 38 // 8.8 fixed: ~0.15 px/frame^2
 FLAP_POWER :: -780 // 8.8 fixed: ~-3.05 px/frame
 MAX_FALL :: 1280 // 8.8 fixed: 5 px/frame cap
@@ -34,9 +40,7 @@ PIPE_SPACING :: 90
 MAX_PIPES :: 4
 PIPE_SPRITE_H :: 64
 
-// Gap Y range: constrained so both pipe halves fit in 64px sprite
-// Top pipe: gap_y <= 64, Bottom pipe: (PLAY_BOTTOM - gap_y - PIPE_GAP) <= 64
-// => gap_y in [PLAY_BOTTOM - PIPE_GAP - 64, 64] = [24, 64]
+// Each pipe sprite is only 64 pixels tall. Keep the gap where both pipes can reach it.
 GAP_Y_MIN :: PLAY_BOTTOM - PIPE_GAP - PIPE_SPRITE_H
 GAP_Y_MAX :: PIPE_SPRITE_H
 #assert(GAP_Y_MAX >= GAP_Y_MIN && GAP_Y_MAX - GAP_Y_MIN < 64)
@@ -59,36 +63,25 @@ SKY_SCROLL_Y :: 120 // Show the skyline above the ground, without scaling the ar
 FONT_TILE :: 64
 
 // TODO: streamline asset load?
+BIRD_ASSET :: #load("../../assets/flappy/megacrash-bird.tiles.bin")
+PIPE_ASSET :: #load("../../assets/flappy/megacrash-pipe.tiles.bin")
+GROUND_ASSET :: #load("../../assets/flappy/megacrash-ground.tiles.bin")
+BACKGROUND_ASSET :: #load("../../assets/flappy/megacrash-background.tilemap.bin")
+FONT_ASSET :: #load("../../assets/font.tiles.bin")
+
 FONT :: gba.Tile_Font {
 	first_tile      = FONT_TILE,
 	first_codepoint = ' ',
 	glyph_count     = 96,
 	palette_bank    = 1,
 }
-BIRD_ASSET :: #load("../../assets/flappy/megacrash-bird.tiles.bin")
 BIRD_ANIMATION :: gba.Sprite_Animation {
 	first_tile      = OBJ_TILE_BIRD,
 	frame_count     = 4,
 	ticks_per_frame = 6,
 }
-PIPE_ASSET :: #load("../../assets/flappy/megacrash-pipe.tiles.bin")
-GROUND_ASSET :: #load("../../assets/flappy/megacrash-ground.tiles.bin")
-BACKGROUND_ASSET :: #load("../../assets/flappy/megacrash-background.tilemap.bin")
-FONT_ASSET :: #load("../../assets/font.tiles.bin")
-
 SKY_COLOR :: gba.Color(10 | 20 << 5 | 31 << 10)
 GAMEOVER_BG_COLOR :: gba.Color(25 | 5 << 5 | 5 << 10)
-
-// RAM shadow: only sprites_commit touches hardware OAM.
-sprites: gba.Oam_Buffer
-
-// Fixed point fractions to avoid float math.
-// At shift 8, it means 256 is a whole pixel, 128 is half (0.5) and so on.
-// Useful for keeping physics fully on integer math
-// TODO: add more helpers in the sdk!
-FP_SHIFT :: 8
-fp_from_int :: proc "contextless" (v: int) -> int {return v << FP_SHIFT}
-fp_to_int :: proc "contextless" (v: int) -> int {return v >> FP_SHIFT}
 
 Game_State :: enum u8 {
 	Title,
@@ -103,21 +96,132 @@ Pipe :: struct {
 }
 
 Game :: struct {
-	state:        Game_State,
-	bird_y:       int, // 8.8 fixed
-	bird_vel:     int, // 8.8 fixed
-	pipes:        [MAX_PIPES]Pipe,
-	scroll:       u16, // ground scroll offset
-	rng:          gba.Rng,
-	flap:         gba.Sprite_Animation_State,
-	score_digits: [6]u8,
+	state:    Game_State,
+	bird_y:   int, // 8.8 fixed
+	bird_vel: int, // 8.8 fixed
+	pipes:    [MAX_PIPES]Pipe,
+	scroll:   u16,
+	rng:      gba.Rng,
+	flap:     gba.Sprite_Animation_State,
+	score:    u32,
 }
 
-spawn_pipe :: proc "contextless" (g: ^Game, slot: int, x: int) {
-	g.pipes[slot] = Pipe {
-		x      = x,
-		gap_y  = gba.rand_range(&g.rng, GAP_Y_MIN, GAP_Y_MAX),
-		scored = false,
+// Edit sprites in RAM, then upload them together during VBlank.
+sprites: gba.Oam_Buffer
+
+@(export)
+gba_main :: proc "contextless" () {
+	gba.interrupts_init()
+	gba.display_init({mode = .Mode_0, flags = {.Force_Blank}})
+
+	setup_tiles()
+	setup_display()
+
+	game := Game {
+		state = .Title,
+		rng   = gba.rand_seed(1337),
+	}
+
+	gba.sprite_set(
+		&sprites[SPRITE_BIRD],
+		gba.Sprite_Config {
+			x = BIRD_X,
+			y = PLAY_BOTTOM / 2,
+			size = gba.SPRITE_16x16,
+			tile_index = OBJ_TILE_BIRD,
+			palette_bank = 0,
+			color_mode = .Colors_16,
+			enabled = true,
+		},
+	)
+
+	input: gba.Inputs
+	update_sprites(&game)
+	gba.sprites_commit(&sprites)
+	gba.tilemap_text(SCREENBLOCK_TEXT, 8, 4, FONT, "FLAPPY BIRD")
+	gba.tilemap_text(SCREENBLOCK_TEXT, 7, 12, FONT, "PRESS A TO FLAP")
+	gba.display_set({.BG0, .BG1, .BG2, .Sprites})
+	gba.display_clear({.Force_Blank})
+	previous := game.state
+	for {
+		gba.wait_for_vblank()
+		gba.inputs_update(&input)
+
+		previous_score := game.score
+		update(&game, &input)
+		update_sprites(&game)
+		gba.sprites_commit(&sprites)
+		redraw_score := game.state != previous || game.score != previous_score
+		if game.state != previous {
+			gba.tilemap_clear(SCREENBLOCK_TEXT)
+			if game.state == .Game_Over {
+				gba.tilemap_text(SCREENBLOCK_TEXT, 9, 5, FONT, "GAME OVER")
+				gba.tilemap_text(SCREENBLOCK_TEXT, 6, 8, FONT, "A: TRY AGAIN")
+			}
+			previous = game.state
+		}
+		if game.state != .Title && redraw_score do draw_score(game.score)
+	}
+}
+
+// Each asset has its own palette bank so loading one doesn't change another's colors.
+// Bird OBJ0, pipe OBJ1, ground BG0, font BG1, scenery BG2.
+// Tile 0 stays transparent in charblock 0.
+setup_tiles :: proc "contextless" () {
+	empty: [8]u32
+	gba.tile_load_4bpp(CHARBLOCK_BG, 0, empty[:])
+	ground := gba.tile_asset_parse(GROUND_ASSET)
+	font := gba.tile_asset_parse(FONT_ASSET)
+	pipe := gba.tile_asset_parse(PIPE_ASSET)
+	bird := gba.tile_asset_parse(BIRD_ASSET)
+	gba.tile_asset_load(CHARBLOCK_BG, TILE_GROUND, 0, ground)
+	gba.tile_asset_load(CHARBLOCK_BG, FONT_TILE, FONT.palette_bank, font)
+	gba.sprite_asset_load(OBJ_TILE_PIPE, 1, pipe)
+	gba.sprite_asset_load(OBJ_TILE_BIRD, 0, bird)
+	gba.tilemap_asset_load(CHARBLOCK_SKY, 0, SCREENBLOCK_SKY, 2, BACKGROUND_ASSET)
+	gba.palette_bg_set(FONT.palette_bank * 16 + 1, gba.COLOR_BLACK)
+	gba.palette_bg_set(0, SKY_COLOR)
+}
+
+setup_display :: proc "contextless" () {
+	gba.bg_configure(
+		BG_GROUND,
+		gba.Bg_Control {
+			priority     = 0, // cover pipe ends below the play area
+			char_block   = CHARBLOCK_BG,
+			color_mode   = .Colors_16,
+			screen_block = SCREENBLOCK_GROUND,
+			size         = .Size_256x256,
+		},
+	)
+
+	setup_ground_tilemap()
+
+	gba.sprites_init(&sprites)
+	gba.bg_configure(.BG1, {char_block = 0, screen_block = SCREENBLOCK_TEXT})
+	gba.bg_configure(
+		.BG2,
+		{
+			priority = 3,
+			char_block = CHARBLOCK_SKY,
+			screen_block = SCREENBLOCK_SKY,
+			size = .Size_256x256,
+		},
+	)
+	gba.bg_scroll(.BG2, 0, SKY_SCROLL_Y)
+	gba.tilemap_clear(SCREENBLOCK_TEXT)
+
+}
+
+setup_ground_tilemap :: proc "contextless" () {
+	gba.tilemap_clear(SCREENBLOCK_GROUND)
+	// TODO: SDK helper for repeating a tile pattern across an area.
+	// Repeat the imported 16x24 strip across the visible ground.
+	for row in GROUND_ROW ..< 20 {
+		for col in 0 ..< 32 {
+			tile := TILE_GROUND + (row - GROUND_ROW) * 2 + col % 2
+			gba.tilemap_set(SCREENBLOCK_GROUND, col, row, tile, 0)
+		}
 	}
 }
 
@@ -125,7 +229,7 @@ reset_game :: proc "contextless" (g: ^Game) {
 	g.state = .Playing
 	g.bird_y = fp_from_int(PLAY_BOTTOM / 2)
 	g.bird_vel = 0
-	g.score_digits = {}
+	g.score = 0
 	g.scroll = 0
 
 	for i in 0 ..< MAX_PIPES {
@@ -149,73 +253,6 @@ reset_game :: proc "contextless" (g: ^Game) {
 
 	g.flap = gba.sprite_animation_start(&sprites[SPRITE_BIRD], BIRD_ANIMATION)
 	gba.palette_bg_set(0, SKY_COLOR)
-}
-
-// TODO: some collision helpers/rects and similar could be part of the gba package
-rects_overlap :: proc "contextless" (ax, ay, aw, ah, bx, by, bw, bh: int) -> bool {
-	return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by
-}
-
-check_collisions :: proc "contextless" (g: ^Game) -> bool {
-	bird_left := BIRD_X + BIRD_HIT_X
-	bird_top := fp_to_int(g.bird_y) + BIRD_HIT_Y
-	bird_bottom := bird_top + BIRD_HIT_H
-
-	if bird_bottom > PLAY_BOTTOM {
-		return true
-	}
-
-	for i in 0 ..< MAX_PIPES {
-		p := &g.pipes[i]
-		if p.x + PIPE_W < 0 || p.x > SCREEN_W {
-			continue
-		}
-
-		top_pipe_bottom := p.gap_y
-		bottom_pipe_top := p.gap_y + PIPE_GAP
-
-		if rects_overlap(
-			bird_left,
-			bird_top,
-			BIRD_HIT_W,
-			BIRD_HIT_H,
-			p.x,
-			0,
-			PIPE_W,
-			top_pipe_bottom,
-		) {
-			return true
-		}
-		if rects_overlap(
-			bird_left,
-			bird_top,
-			BIRD_HIT_W,
-			BIRD_HIT_H,
-			p.x,
-			bottom_pipe_top,
-			PIPE_W,
-			PLAY_BOTTOM - bottom_pipe_top,
-		) {
-			return true
-		}
-	}
-	return false
-}
-
-update_flap :: proc "contextless" (g: ^Game, pressed: bool) {
-	if pressed {
-		g.flap = gba.sprite_animation_start(&sprites[SPRITE_BIRD], BIRD_ANIMATION)
-	} else if gba.sprite_animation_step(&sprites[SPRITE_BIRD], &g.flap) {
-		sprites[SPRITE_BIRD].attr2.tile_index = OBJ_TILE_BIRD
-	}
-}
-
-increment_score :: proc "contextless" (g: ^Game) {
-	for &digit in g.score_digits {
-		digit += 1
-		if digit < 10 do break
-		digit = 0
-	}
 }
 
 update :: proc "contextless" (g: ^Game, input: ^gba.Inputs) {
@@ -281,6 +318,73 @@ update :: proc "contextless" (g: ^Game, input: ^gba.Inputs) {
 	}
 }
 
+spawn_pipe :: proc "contextless" (g: ^Game, slot: int, x: int) {
+	g.pipes[slot] = Pipe {
+		x      = x,
+		gap_y  = gba.rand_range(&g.rng, GAP_Y_MIN, GAP_Y_MAX),
+		scored = false,
+	}
+}
+
+update_flap :: proc "contextless" (g: ^Game, pressed: bool) {
+	if pressed {
+		g.flap = gba.sprite_animation_start(&sprites[SPRITE_BIRD], BIRD_ANIMATION)
+	} else if gba.sprite_animation_step(&sprites[SPRITE_BIRD], &g.flap) {
+		sprites[SPRITE_BIRD].attr2.tile_index = OBJ_TILE_BIRD
+	}
+}
+
+increment_score :: proc "contextless" (g: ^Game) {
+	g.score += 1
+	if g.score > 999_999 do g.score = 0
+}
+
+check_collisions :: proc "contextless" (g: ^Game) -> bool {
+	bird_left := BIRD_X + BIRD_HIT_X
+	bird_top := fp_to_int(g.bird_y) + BIRD_HIT_Y
+	bird_bottom := bird_top + BIRD_HIT_H
+
+	if bird_bottom > PLAY_BOTTOM {
+		return true
+	}
+
+	for i in 0 ..< MAX_PIPES {
+		p := &g.pipes[i]
+		if p.x + PIPE_W < 0 || p.x > SCREEN_W {
+			continue
+		}
+
+		top_pipe_bottom := p.gap_y
+		bottom_pipe_top := p.gap_y + PIPE_GAP
+
+		if rects_overlap(
+			bird_left,
+			bird_top,
+			BIRD_HIT_W,
+			BIRD_HIT_H,
+			p.x,
+			0,
+			PIPE_W,
+			top_pipe_bottom,
+		) {
+			return true
+		}
+		if rects_overlap(
+			bird_left,
+			bird_top,
+			BIRD_HIT_W,
+			BIRD_HIT_H,
+			p.x,
+			bottom_pipe_top,
+			PIPE_W,
+			PLAY_BOTTOM - bottom_pipe_top,
+		) {
+			return true
+		}
+	}
+	return false
+}
+
 update_sprites :: proc "contextless" (g: ^Game) {
 	bird_y := fp_to_int(g.bird_y)
 	if g.state == .Title {
@@ -299,7 +403,8 @@ update_sprites :: proc "contextless" (g: ^Game) {
 			continue
 		}
 
-		// Negative positions wrap in OAM.
+		// OAM stores Y as an unsigned byte, so wrap negative positions
+		// to place pipes above the screen.
 		top_y := (p.gap_y - PIPE_SPRITE_H) & 0xFF
 
 		bot_y := p.gap_y + PIPE_GAP
@@ -312,7 +417,7 @@ update_sprites :: proc "contextless" (g: ^Game) {
 			priority     = 1,
 			palette_bank = 1,
 			enabled      = true,
-			vflip        = true, // The shared pipe cap faces the upper gap edge.
+			vflip        = true, // Flip the same artwork for the upper pipe so its cap faces the gap.
 		}
 		gba.sprite_set(&sprites[top_sprite], config)
 		config.y = bot_y
@@ -324,128 +429,15 @@ update_sprites :: proc "contextless" (g: ^Game) {
 	gba.bg_scroll(.BG2, g.scroll / 4, SKY_SCROLL_Y)
 }
 
-// Palette banks isolate independently packed assets: bird OBJ0, pipe OBJ1,
-// ground BG0, font BG1, scenery BG2. Tile 0 stays transparent in charblock 0.
-setup_tiles :: proc "contextless" () {
-	empty: [8]u32
-	gba.tile_load_4bpp(CHARBLOCK_BG, 0, empty[:])
-	ground := gba.tile_asset_parse(GROUND_ASSET)
-	font := gba.tile_asset_parse(FONT_ASSET)
-	pipe := gba.tile_asset_parse(PIPE_ASSET)
-	bird := gba.tile_asset_parse(BIRD_ASSET)
-	gba.tile_asset_load(CHARBLOCK_BG, TILE_GROUND, 0, ground)
-	gba.tile_asset_load(CHARBLOCK_BG, FONT_TILE, FONT.palette_bank, font)
-	gba.sprite_asset_load(OBJ_TILE_PIPE, 1, pipe)
-	gba.sprite_asset_load(OBJ_TILE_BIRD, 0, bird)
-	gba.tilemap_asset_load(CHARBLOCK_SKY, 0, SCREENBLOCK_SKY, 2, BACKGROUND_ASSET)
-	gba.palette_bg_set(FONT.palette_bank * 16 + 1, gba.COLOR_BLACK)
-	gba.palette_bg_set(0, SKY_COLOR)
-}
-
-setup_ground_tilemap :: proc "contextless" () {
-	gba.tilemap_clear(SCREENBLOCK_GROUND)
-	// TODO: SDK helper for repeating a tile pattern across an area.
-	// Repeat the imported 16x24 strip across the visible ground.
-	for row in GROUND_ROW ..< 20 {
-		for col in 0 ..< 32 {
-			tile := TILE_GROUND + (row - GROUND_ROW) * 2 + col % 2
-			gba.tilemap_set(SCREENBLOCK_GROUND, col, row, tile, 0)
-		}
-	}
-}
-
-setup_display :: proc "contextless" () {
-	gba.bg_configure(
-		BG_GROUND,
-		gba.Bg_Control {
-			priority     = 0, // cover pipe ends below the play area
-			char_block   = CHARBLOCK_BG,
-			color_mode   = .Colors_16, // 4bpp tiles
-			screen_block = SCREENBLOCK_GROUND,
-			size         = .Size_256x256,
-		},
-	)
-
-	setup_ground_tilemap()
-
-	gba.sprites_init(&sprites)
-	gba.bg_configure(.BG1, {char_block = 0, screen_block = SCREENBLOCK_TEXT})
-	gba.bg_configure(
-		.BG2,
-		{
-			priority = 3,
-			char_block = CHARBLOCK_SKY,
-			screen_block = SCREENBLOCK_SKY,
-			size = .Size_256x256,
-		},
-	)
-	gba.bg_scroll(.BG2, 0, SKY_SCROLL_Y)
-	gba.tilemap_clear(SCREENBLOCK_TEXT)
-
-}
-
-draw_score :: proc "contextless" (digits: [6]u8) {
+draw_score :: proc "contextless" (score: u32) {
 	gba.tilemap_text(SCREENBLOCK_TEXT, 1, 1, FONT, "SCORE")
-	for digit, i in digits {
-		gba.tilemap_set(
-			SCREENBLOCK_TEXT,
-			12 - i,
-			1,
-			FONT_TILE + int('0' - ' ') + int(digit),
-			FONT.palette_bank,
-		)
-	}
+	gba.tilemap_number(SCREENBLOCK_TEXT, 7, 1, FONT, score, min_digits = 6)
 }
 
-@(export)
-gba_main :: proc "contextless" () {
-	gba.interrupts_init()
-	gba.display_init({mode = .Mode_0, flags = {.Force_Blank}})
-
-	setup_tiles()
-	setup_display()
-
-	game := Game {
-		state = .Title,
-		rng   = gba.rand_seed(1337),
-	}
-
-	gba.sprite_set(
-		&sprites[SPRITE_BIRD],
-		gba.Sprite_Config {
-			x = BIRD_X,
-			y = PLAY_BOTTOM / 2,
-			size = gba.SPRITE_16x16,
-			tile_index = OBJ_TILE_BIRD,
-			palette_bank = 0,
-			color_mode = .Colors_16,
-			enabled = true,
-		},
-	)
-
-	input: gba.Inputs
-	update_sprites(&game)
-	gba.sprites_commit(&sprites)
-	gba.tilemap_text(SCREENBLOCK_TEXT, 8, 4, FONT, "FLAPPY BIRD")
-	gba.tilemap_text(SCREENBLOCK_TEXT, 7, 12, FONT, "PRESS A TO FLAP")
-	gba.display_set({.BG0, .BG1, .BG2, .Sprites})
-	gba.display_clear({.Force_Blank})
-	previous := game.state
-	for {
-		gba.wait_for_vblank()
-		gba.inputs_update(&input)
-
-		update(&game, &input)
-		update_sprites(&game)
-		gba.sprites_commit(&sprites)
-		if game.state != previous {
-			gba.tilemap_clear(SCREENBLOCK_TEXT)
-			if game.state == .Game_Over {
-				gba.tilemap_text(SCREENBLOCK_TEXT, 9, 5, FONT, "GAME OVER")
-				gba.tilemap_text(SCREENBLOCK_TEXT, 6, 8, FONT, "A: TRY AGAIN")
-			}
-			previous = game.state
-		}
-		if game.state != .Title do draw_score(game.score_digits)
-	}
+// TODO: some collision helpers/rects and similar could be part of the gba package
+rects_overlap :: proc "contextless" (ax, ay, aw, ah, bx, by, bw, bh: int) -> bool {
+	return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by
 }
+
+fp_from_int :: proc "contextless" (v: int) -> int {return v << FP_SHIFT}
+fp_to_int :: proc "contextless" (v: int) -> int {return v >> FP_SHIFT}

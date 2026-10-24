@@ -34,6 +34,33 @@ tilemap_text :: proc "contextless" (block, x, y: int, font: Tile_Font, text: str
 	}
 }
 
+// Draws unsigned decimal text, with optional leading zeroes.
+tilemap_number :: proc "contextless" (
+	block, x, y: int,
+	font: Tile_Font,
+	value: u32,
+	min_digits: int = 1,
+) {
+	assert_contextless(min_digits >= 1 && min_digits <= 10, "invalid digit count")
+	buffer: [10]u8
+	start := len(buffer)
+	remaining := value
+	for {
+		// Exact division by 10 using a scaled reciprocal; avoids software division.
+		// https://learn.microsoft.com/en-us/archive/blogs/devdev/integer-division-by-constants
+		quotient := u32((u64(remaining) * 0xcccc_cccd) >> 35)
+		start -= 1
+		buffer[start] = '0' + u8(remaining - quotient * 10)
+		remaining = quotient
+		if remaining == 0 do break
+	}
+	for len(buffer) - start < min_digits {
+		start -= 1
+		buffer[start] = '0'
+	}
+	tilemap_text(block, x, y, font, transmute(string)buffer[start:])
+}
+
 Tilemap_Asset :: struct {
 	columns, rows, tile_count: int,
 	graphics, entries:         []u8,
@@ -43,7 +70,7 @@ asset_u16 :: proc "contextless" (data: []u8, offset: int) -> u16 {
 	return u16(data[offset]) | u16(data[offset + 1]) << 8
 }
 
-// Assets are validated by the build tools; these slices borrow ROM data.
+// Points into the embedded asset; doesn't allocate or copy. The build tools validate it.
 tilemap_asset_parse :: proc "contextless" (data: []u8) -> Tilemap_Asset {
 	assert_contextless(
 		len(data) >= 44 && data[0] == 'G' && data[1] == 'B' && data[2] == 'M' && data[3] == '1',
@@ -70,7 +97,7 @@ regular_tilemap_index :: proc "contextless" (columns, x, y: int) -> int {
 }
 
 // Load one regular 4bpp BG. Configure its Bg_Control separately using the same
-// block locations and the map's dimensions. Other layers' VRAM remains caller-owned.
+// block locations and the map's dimensions. Choose blocks that don't overlap other backgrounds.
 // One upload is limited to a 16 KiB charblock, matching tile_asset_load.
 tilemap_asset_load :: proc "contextless" (
 	char_block, first_tile, screen_block, palette_bank: int,

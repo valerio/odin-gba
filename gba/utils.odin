@@ -311,14 +311,30 @@ rand_next :: proc "contextless" (state: ^Rng) -> u32 {
 }
 
 // Generates a random integer in a given range.
-// This uses no division/modulo, which makes it faster, but biased, i.e. the chances
-// of drawing a number in the range are not equal.
-// If you need a truly random/uniform distribution, use rand_range_uniform, but be
-// aware that it has a potential performance cost.
+// Optimized for size, using 16 random bits and no division/modulo or retries.
+// Both min and max are included. The range can have at most 65,536 possible results;
+// the endpoints themselves don't need to fit in 16 bits, but must fit in signed 32 bits.
+// This is biased, i.e. the chances of drawing a number in the range are not equal.
+// The bias is small for small ranges, but some numbers can be almost twice as likely
+// for large ranges. Use rand_range_wide for wider ranges or rand_range_uniform to avoid bias.
 //
 // Based on the work of Daniel Lemire (fast random integer generation in an interval)
 // https://www.pcg-random.org/posts/bounded-rands.html (Integer Multiplication)
 rand_range :: proc "contextless" (state: ^Rng, min, max: int) -> int {
+	assert_contextless(
+		min >= -0x8000_0000 && max <= 0x7fff_ffff && min <= max,
+		"invalid random range",
+	)
+	assert_contextless(i64(max) - i64(min) < 65536, "random range exceeds 65536 values")
+	width := u32(i64(max) - i64(min)) + 1
+	offset := ((rand_next(state) >> 16) * width) >> 16
+	return int(i64(min) + i64(offset))
+}
+
+// Like rand_range, but uses 32 random bits and supports the full signed 32-bit range.
+// This has less bias, but needs a wide multiply, which adds code and a helper call on GBA.
+// It still uses one draw, with no division/modulo or retries.
+rand_range_wide :: proc "contextless" (state: ^Rng, min, max: int) -> int {
 	assert_contextless(
 		min >= -0x8000_0000 && max <= 0x7fff_ffff && min <= max,
 		"invalid random range",
@@ -328,7 +344,7 @@ rand_range :: proc "contextless" (state: ^Rng, min, max: int) -> int {
 	return int(i64(min) + i64(offset))
 }
 
-// Same inclusive bounds as rand_range, but without bias.
+// Like rand_range_wide, but without bias.
 // This means each number in the range has equal chance to be drawn, but the
 // cost is that this is done in a loop, so the time it takes to run is variable.
 // Avoid this if you need to generate many random numbers quickly.

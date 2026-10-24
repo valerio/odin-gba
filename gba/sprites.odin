@@ -189,7 +189,7 @@ sprite_tile_count :: proc "contextless" (size: Sprite_Dimensions) -> int {
 	return (int(size.width) / 8) * (int(size.height) / 8)
 }
 
-// A clip of contiguous, equally sized frames in 1D OBJ tile mapping.
+// Frames must have the same size and be uploaded next to each other, using 1D sprite mapping.
 Sprite_Animation :: struct {
 	first_tile:      int,
 	frame_count:     int,
