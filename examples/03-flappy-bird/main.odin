@@ -90,15 +90,15 @@ Game_State :: enum u8 {
 }
 
 Pipe :: struct {
-	x:      int,
-	gap_y:  int,
+	x:      i32,
+	gap_y:  i32,
 	scored: bool,
 }
 
 Game :: struct {
 	state:    Game_State,
-	bird_y:   int, // 8.8 fixed
-	bird_vel: int, // 8.8 fixed
+	bird_y:   i32, // 8.8 fixed
+	bird_vel: i32, // 8.8 fixed
 	pipes:    [MAX_PIPES]Pipe,
 	scroll:   u16,
 	rng:      gba.Rng,
@@ -217,8 +217,8 @@ setup_ground_tilemap :: proc "contextless" () {
 	gba.tilemap_clear(SCREENBLOCK_GROUND)
 	// TODO: SDK helper for repeating a tile pattern across an area.
 	// Repeat the imported 16x24 strip across the visible ground.
-	for row in GROUND_ROW ..< 20 {
-		for col in 0 ..< 32 {
+	for row in i32(GROUND_ROW) ..< 20 {
+		for col in i32(0) ..< 32 {
 			tile := TILE_GROUND + (row - GROUND_ROW) * 2 + col % 2
 			gba.tilemap_set(SCREENBLOCK_GROUND, col, row, tile, 0)
 		}
@@ -232,7 +232,7 @@ reset_game :: proc "contextless" (g: ^Game) {
 	g.score = 0
 	g.scroll = 0
 
-	for i in 0 ..< MAX_PIPES {
+	for i in i32(0) ..< MAX_PIPES {
 		x := SCREEN_W + 20 + i * PIPE_SPACING
 		spawn_pipe(g, i, x)
 	}
@@ -277,15 +277,15 @@ update :: proc "contextless" (g: ^Game, input: ^gba.Inputs) {
 			if g.bird_vel < 0 do g.bird_vel = 0
 		}
 
-		for i in 0 ..< MAX_PIPES {
+		for i in i32(0) ..< MAX_PIPES {
 			g.pipes[i].x -= PIPE_SPEED
 		}
 
-		for i in 0 ..< MAX_PIPES {
+		for i in i32(0) ..< MAX_PIPES {
 			p := &g.pipes[i]
 			if p.x + PIPE_W < 0 {
-				max_x := 0
-				for j in 0 ..< MAX_PIPES {
+				max_x: i32
+				for j in i32(0) ..< MAX_PIPES {
 					if j != i && g.pipes[j].x > max_x {
 						max_x = g.pipes[j].x
 					}
@@ -296,7 +296,7 @@ update :: proc "contextless" (g: ^Game, input: ^gba.Inputs) {
 			}
 		}
 
-		for i in 0 ..< MAX_PIPES {
+		for i in i32(0) ..< MAX_PIPES {
 			p := &g.pipes[i]
 			if !p.scored && p.x + PIPE_W < BIRD_X {
 				p.scored = true
@@ -318,7 +318,7 @@ update :: proc "contextless" (g: ^Game, input: ^gba.Inputs) {
 	}
 }
 
-spawn_pipe :: proc "contextless" (g: ^Game, slot: int, x: int) {
+spawn_pipe :: proc "contextless" (g: ^Game, slot, x: i32) {
 	g.pipes[slot] = Pipe {
 		x      = x,
 		gap_y  = gba.rand_range(&g.rng, GAP_Y_MIN, GAP_Y_MAX),
@@ -340,7 +340,7 @@ increment_score :: proc "contextless" (g: ^Game) {
 }
 
 check_collisions :: proc "contextless" (g: ^Game) -> bool {
-	bird_left := BIRD_X + BIRD_HIT_X
+	bird_left: i32 = BIRD_X + BIRD_HIT_X
 	bird_top := fp_to_int(g.bird_y) + BIRD_HIT_Y
 	bird_bottom := bird_top + BIRD_HIT_H
 
@@ -348,7 +348,7 @@ check_collisions :: proc "contextless" (g: ^Game) -> bool {
 		return true
 	}
 
-	for i in 0 ..< MAX_PIPES {
+	for i in i32(0) ..< MAX_PIPES {
 		p := &g.pipes[i]
 		if p.x + PIPE_W < 0 || p.x > SCREEN_W {
 			continue
@@ -392,7 +392,7 @@ update_sprites :: proc "contextless" (g: ^Game) {
 	}
 	gba.sprite_move(&sprites[SPRITE_BIRD], BIRD_X, bird_y)
 
-	for i in 0 ..< MAX_PIPES {
+	for i in i32(0) ..< MAX_PIPES {
 		p := &g.pipes[i]
 		top_sprite := SPRITE_PIPE_BASE + i * 2
 		bot_sprite := SPRITE_PIPE_BASE + i * 2 + 1
@@ -435,9 +435,9 @@ draw_score :: proc "contextless" (score: u32) {
 }
 
 // TODO: some collision helpers/rects and similar could be part of the gba package
-rects_overlap :: proc "contextless" (ax, ay, aw, ah, bx, by, bw, bh: int) -> bool {
+rects_overlap :: proc "contextless" (ax, ay, aw, ah, bx, by, bw, bh: i32) -> bool {
 	return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by
 }
 
-fp_from_int :: proc "contextless" (v: int) -> int {return v << FP_SHIFT}
-fp_to_int :: proc "contextless" (v: int) -> int {return v >> FP_SHIFT}
+fp_from_int :: proc "contextless" (v: i32) -> i32 {return v << FP_SHIFT}
+fp_to_int :: proc "contextless" (v: i32) -> i32 {return v >> FP_SHIFT}

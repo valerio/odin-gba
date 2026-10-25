@@ -84,7 +84,7 @@ display_init :: proc "contextless" (config: Display_Config) {
 }
 
 
-palette_bg_set :: proc "contextless" (index: int, color: Color) {
+palette_bg_set :: proc "contextless" (index: i32, color: Color) {
 	if index >= 0 && index < raw.PALETTE_SIZE do store(PALETTE_BG, index, color)
 }
 

@@ -18,7 +18,7 @@ gba_main :: proc "contextless" () {
 	gba.store(gba.DISPCNT, gba.Display_Control{mode = .Mode_3, bg2_enabled = true})
 
 	gba.mode3_draw_rect(0, 0, gba.SCREEN_WIDTH, gba.SCREEN_HEIGHT, BACKGROUND)
-	x, y := 40, 64
+	x, y: i32 = 40, 64
 
 	gba.mode3_draw_debug_text(60, 24, "HELLO, ODIN-GBA", TEXT_COLOR)
 	gba.mode3_draw_debug_text(30, 34, "d-pad moves, A yellows", TEXT_COLOR)

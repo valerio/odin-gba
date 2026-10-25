@@ -5,7 +5,7 @@ import "odin-gba:gba"
 PAGE_COUNT :: 6
 BACKGROUND :: gba.COLOR_BLACK
 
-draw_page :: proc "contextless" (page: int, randn: u32) {
+draw_page :: proc "contextless" (page: i32, randn: u32) {
 	gba.mode3_draw_rect(0, 0, gba.SCREEN_WIDTH, gba.SCREEN_HEIGHT, BACKGROUND)
 
 	switch page {
@@ -130,7 +130,7 @@ gba_main :: proc "contextless" () {
 
 	rng := gba.rand_seed(42)
 	randn := gba.rand_next(&rng)
-	page := 0
+	page: i32
 	draw_page(page, randn)
 
 	input: gba.Inputs
@@ -138,7 +138,7 @@ gba_main :: proc "contextless" () {
 		gba.wait_for_vblank()
 		gba.inputs_update(&input)
 
-		flip := 0
+		flip: i32
 		redraw := false
 		if .L in input.pressed do flip = -1
 		if .R in input.pressed do flip = 1

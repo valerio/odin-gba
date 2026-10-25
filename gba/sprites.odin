@@ -6,7 +6,7 @@ package gba
 
 import "raw"
 
-sprite_asset_load :: proc "contextless" (tile, palette_bank: int, asset: Tile_Asset) {
+sprite_asset_load :: proc "contextless" (tile, palette_bank: i32, asset: Tile_Asset) {
 	assert_contextless(
 		tile >= 0 &&
 		tile < 1024 &&
@@ -117,9 +117,9 @@ Oam_Buffer :: [raw.OAM_SPRITE_COUNT]Sprite_Entry
 #assert(align_of(Sprite_Entry) == 4)
 
 Sprite_Config :: struct {
-	x, y:         int,
+	x, y:         i32,
 	size:         Sprite_Dimensions,
-	tile_index:   int,
+	tile_index:   i32,
 	palette_bank: u8,
 	priority:     u8,
 	color_mode:   Color_Mode,
@@ -156,7 +156,7 @@ sprite_set :: proc "contextless" (entry: ^Sprite_Entry, config: Sprite_Config) {
 	entry.attr2 = value.attr2
 }
 
-sprite_move :: proc "contextless" (entry: ^Sprite_Entry, x, y: int) {
+sprite_move :: proc "contextless" (entry: ^Sprite_Entry, x, y: i32) {
 	entry.attr0.y = u8(y & 0xff)
 	entry.attr1.x = u16(x & 0x1ff)
 }
@@ -180,24 +180,24 @@ sprites_init :: proc "contextless" (buffer: ^Oam_Buffer) {
 sprites_commit :: proc "contextless" (buffer: ^Oam_Buffer) {
 	destination := ([^]u16)(raw.OAM_BASE)
 	source := ([^]u16)(rawptr(buffer))
-	for i in 0 ..< size_of(Oam_Buffer) / 2 {
+	for i in i32(0) ..< size_of(Oam_Buffer) / 2 {
 		store_addr(&destination[i], source[i])
 	}
 }
 
-sprite_tile_count :: proc "contextless" (size: Sprite_Dimensions) -> int {
-	return (int(size.width) / 8) * (int(size.height) / 8)
+sprite_tile_count :: proc "contextless" (size: Sprite_Dimensions) -> i32 {
+	return (i32(size.width) / 8) * (i32(size.height) / 8)
 }
 
 // Frames must have the same size and be uploaded next to each other, using 1D sprite mapping.
 Sprite_Animation :: struct {
-	first_tile:      int,
-	frame_count:     int,
+	first_tile:      i32,
+	frame_count:     i32,
 	ticks_per_frame: u32,
 }
 
 Sprite_Animation_State :: struct {
-	first_tile, last_tile, tile, stride: int,
+	first_tile, last_tile, tile, stride: i32,
 	ticks_per_frame, ticks_left:         u32,
 	finished:                            bool,
 }

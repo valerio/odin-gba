@@ -14,7 +14,7 @@ store_addr :: proc "contextless" (addr: ^$T, value: T) {
 	intrinsics.volatile_store(addr, value)
 }
 
-store_array :: proc "contextless" (region: ^[$N]$T, index: int, value: T) {
+store_array :: proc "contextless" (region: ^[$N]$T, index: i32, value: T) {
 	intrinsics.volatile_store(&region^[index], value)
 }
 
@@ -28,7 +28,7 @@ load_addr :: proc "contextless" (addr: ^$T) -> T {
 	return intrinsics.volatile_load(addr)
 }
 
-load_array :: proc "contextless" (region: ^[$N]$T, index: int) -> T {
+load_array :: proc "contextless" (region: ^[$N]$T, index: i32) -> T {
 	return intrinsics.volatile_load(&region^[index])
 }
 

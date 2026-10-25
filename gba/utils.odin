@@ -19,7 +19,7 @@ Button :: enum u8 {
 	L      = 9,
 }
 
-Buttons :: distinct bit_set[Button]
+Buttons :: distinct bit_set[Button;u16]
 
 // Holds computed button state from previous and current polling.
 // This should be updated only once per frame, ideally just after
@@ -69,15 +69,15 @@ inputs_update :: proc "contextless" (i: ^Inputs) {
 // Mode3 has only 240 * 160 pixels, writing elsewhere isn't good.
 VRAM_COLORS :: cast(^[SCREEN_WIDTH * SCREEN_HEIGHT / size_of(Color)]Color)raw.VRAM_BASE
 
-mode3_set_pixel :: proc "contextless" (x, y: int, color: Color) {
+mode3_set_pixel :: proc "contextless" (x, y: i32, color: Color) {
 	store(VRAM_COLORS, y * SCREEN_WIDTH + x, color)
 }
 
 // draws a line using Bresenham's algorithm for drawing without division.
 // https://en.wikipedia.org/wiki/Bresenham%27s_line_algorithm
-mode3_draw_line :: proc "contextless" (x1, y1, x2, y2: int, color: Color) {
+mode3_draw_line :: proc "contextless" (x1, y1, x2, y2: i32, color: Color) {
 	dx, dy := abs(x2 - x1), -abs(y2 - y1)
-	signx, signy := 1 if x1 < x2 else -1, 1 if y1 < y2 else -1
+	signx, signy: i32 = 1 if x1 < x2 else -1, 1 if y1 < y2 else -1
 	error := dx + dy
 
 	// horizontal line
@@ -121,7 +121,7 @@ mode3_draw_line :: proc "contextless" (x1, y1, x2, y2: int, color: Color) {
 	}
 }
 
-mode3_draw_rect :: proc "contextless" (left, top, width, height: int, color: Color) {
+mode3_draw_rect :: proc "contextless" (left, top, width, height: i32, color: Color) {
 	// TODO: call into BIOS CpuFastSet
 	for y in top ..< top + height {
 		for x in left ..< left + width {
@@ -140,17 +140,17 @@ DEBUG_FONT_CHAR_HEIGHT :: 8
 // 8x8 pixel font, 96 ASCII monochrome characters (1-bit palette)
 DEBUG_FONT :: #load("../assets/font.bpp")
 
-mode3_draw_debug_char :: proc "contextless" (x, y: int, char: u8, color: Color) {
+mode3_draw_debug_char :: proc "contextless" (x, y: i32, char: u8, color: Color) {
 	if char < DEBUG_FONT_FIRST_CHARACTER ||
 	   char >= DEBUG_FONT_FIRST_CHARACTER + DEBUG_FONT_CHAR_COUNT {
 		return
 	}
 
 	font := DEBUG_FONT
-	offset := int(char - DEBUG_FONT_FIRST_CHARACTER) * DEBUG_FONT_CHAR_HEIGHT
-	for row in 0 ..< DEBUG_FONT_CHAR_HEIGHT {
+	offset := i32(char - DEBUG_FONT_FIRST_CHARACTER) * DEBUG_FONT_CHAR_HEIGHT
+	for row in i32(0) ..< DEBUG_FONT_CHAR_HEIGHT {
 		pixels := font[offset + row]
-		for column in 0 ..< DEBUG_FONT_CHAR_WIDTH {
+		for column in i32(0) ..< DEBUG_FONT_CHAR_WIDTH {
 			if pixels & (1 << u8(7 - column)) != 0 {
 				mode3_set_pixel(x + column, y + row, color)
 			}
@@ -162,7 +162,7 @@ mode3_draw_debug_char :: proc "contextless" (x, y: int, char: u8, color: Color) 
 // This is software blitting, so slow and for debugging and simple demo only.
 // The font is a shitty hand drawn thing made by me, it adds ~1KB to executable size
 // when used.
-mode3_draw_debug_text :: proc "contextless" (x, y: int, text: string, color: Color) {
+mode3_draw_debug_text :: proc "contextless" (x, y: i32, text: string, color: Color) {
 	curr_x := x
 	// note: ranging over runes produces bigger executables due to UTF8 helper code
 	// TODO: add some vet/warning if the built ELF contains odin utf8 helpers.
@@ -179,7 +179,7 @@ Debug_Arg :: union #no_nil {
 	bool,
 }
 
-mode3_put_char :: proc "contextless" (x, y: ^int, char: u8) -> bool {
+mode3_put_char :: proc "contextless" (x, y: ^i32, char: u8) -> bool {
 	switch char {
 	case '\n':
 		x^ = 0
@@ -203,16 +203,16 @@ mode3_put_char :: proc "contextless" (x, y: ^int, char: u8) -> bool {
 	return true
 }
 
-mode3_put_string :: proc "contextless" (x, y: ^int, value: string) -> bool {
+mode3_put_string :: proc "contextless" (x, y: ^i32, value: string) -> bool {
 	for i in 0 ..< len(value) {
 		mode3_put_char(x, y, value[i]) or_return
 	}
 	return true
 }
 
-mode3_put_i32 :: proc "contextless" (x, y: ^int, value: i32) -> bool {
+mode3_put_i32 :: proc "contextless" (x, y: ^i32, value: i32) -> bool {
 	buf: [11]u8
-	i, remaining, neg := len(buf), value, value < 0
+	i, remaining, neg := i32(len(buf)), value, value < 0
 	if neg do remaining = ~remaining + 1
 
 	for {
@@ -231,14 +231,14 @@ mode3_put_i32 :: proc "contextless" (x, y: ^int, value: i32) -> bool {
 	return mode3_put_string(x, y, string(buf[i:]))
 }
 
-mode3_put_u32_hex :: proc "contextless" (x, y: ^int, value: u32) -> bool {
+mode3_put_u32_hex :: proc "contextless" (x, y: ^i32, value: u32) -> bool {
 	hex_digits := "0123456789ABCDEF"
 	buf: [9]u8
-	i, remaining := len(buf), value
+	i, remaining := i32(len(buf)), value
 
 	for {
 		i -= 1
-		buf[i] = hex_digits[int(remaining & 0xf)]
+		buf[i] = hex_digits[remaining & 0xf]
 		remaining >>= 4
 		if remaining == 0 do break
 	}
@@ -252,7 +252,7 @@ mode3_put_u32_hex :: proc "contextless" (x, y: ^int, value: u32) -> bool {
 // This is meant for debugging purposes in mode 3, not an efficient
 // way of drawing text. For that, a tiled mode is better.
 mode3_print :: proc "contextless" (args: ..Debug_Arg) -> bool {
-	x, y := 0, 0
+	x, y: i32
 	for arg in args {
 		switch value in arg {
 		case string:
@@ -298,7 +298,7 @@ rand_seed :: proc "contextless" (seed: u32) -> Rng {
 //
 // Get a seeded state with `rand_seed()` first.
 rand_next :: proc "contextless" (state: ^Rng) -> u32 {
-	rotl :: #force_inline proc "contextless" (x: u32, k: uint) -> u32 {
+	rotl :: #force_inline proc "contextless" (x: u32, k: u32) -> u32 {
 		return (x << k) | (x >> (32 - k))
 	}
 
@@ -320,28 +320,22 @@ rand_next :: proc "contextless" (state: ^Rng) -> u32 {
 //
 // Based on the work of Daniel Lemire (fast random integer generation in an interval)
 // https://www.pcg-random.org/posts/bounded-rands.html (Integer Multiplication)
-rand_range :: proc "contextless" (state: ^Rng, min, max: int) -> int {
-	assert_contextless(
-		min >= -0x8000_0000 && max <= 0x7fff_ffff && min <= max,
-		"invalid random range",
-	)
+rand_range :: proc "contextless" (state: ^Rng, min, max: i32) -> i32 {
+	assert_contextless(min <= max, "invalid random range")
 	assert_contextless(i64(max) - i64(min) < 65536, "random range exceeds 65536 values")
 	width := u32(i64(max) - i64(min)) + 1
 	offset := ((rand_next(state) >> 16) * width) >> 16
-	return int(i64(min) + i64(offset))
+	return i32(i64(min) + i64(offset))
 }
 
 // Like rand_range, but uses 32 random bits and supports the full signed 32-bit range.
 // This has less bias, but needs a wide multiply, which adds code and a helper call on GBA.
 // It still uses one draw, with no division/modulo or retries.
-rand_range_wide :: proc "contextless" (state: ^Rng, min, max: int) -> int {
-	assert_contextless(
-		min >= -0x8000_0000 && max <= 0x7fff_ffff && min <= max,
-		"invalid random range",
-	)
+rand_range_wide :: proc "contextless" (state: ^Rng, min, max: i32) -> i32 {
+	assert_contextless(min <= max, "invalid random range")
 	width := u64(i64(max) - i64(min)) + 1
 	offset := (u64(rand_next(state)) * width) >> 32
-	return int(i64(min) + i64(offset))
+	return i32(i64(min) + i64(offset))
 }
 
 // Like rand_range_wide, but without bias.
@@ -350,11 +344,8 @@ rand_range_wide :: proc "contextless" (state: ^Rng, min, max: int) -> int {
 // Avoid this if you need to generate many random numbers quickly.
 //
 // https://www.pcg-random.org/posts/bounded-rands.html (Bitmask with Rejection)
-rand_range_uniform :: proc "contextless" (state: ^Rng, min, max: int) -> int {
-	assert_contextless(
-		min >= -0x8000_0000 && max <= 0x7fff_ffff && min <= max,
-		"invalid random range",
-	)
+rand_range_uniform :: proc "contextless" (state: ^Rng, min, max: i32) -> i32 {
+	assert_contextless(min <= max, "invalid random range")
 	last := u32(i64(max) - i64(min))
 	mask := last
 	mask |= mask >> 1
@@ -364,7 +355,7 @@ rand_range_uniform :: proc "contextless" (state: ^Rng, min, max: int) -> int {
 	mask |= mask >> 16
 	for {
 		offset := rand_next(state) & mask
-		if offset <= last do return int(i64(min) + i64(offset))
+		if offset <= last do return i32(i64(min) + i64(offset))
 	}
 }
 
@@ -416,7 +407,7 @@ Interrupt :: enum u8 {
 // F E D C  B A 9 8  7 6 5 4  3 2 1 0
 // X X T Y  G F E D  S L K J  I C H V
 // ```
-Interrupts :: distinct bit_set[Interrupt]
+Interrupts :: distinct bit_set[Interrupt;u16]
 
 
 // Initializes the user interrupt handler (defined in assembly).

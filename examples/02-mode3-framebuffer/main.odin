@@ -13,7 +13,7 @@ gba_main :: proc "contextless" () {
 
 	// Copy the packed framebuffer into VRAM before enabling the display.
 	data := FRAMEBUFFER
-	for i in 0 ..< gba.SCREEN_PIXELS {
+	for i in i32(0) ..< gba.SCREEN_PIXELS {
 		lo := data[i * 2]
 		hi := data[i * 2 + 1]
 		color := gba.Color(lo) | gba.Color(hi) << 8

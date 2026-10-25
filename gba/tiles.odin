@@ -3,8 +3,8 @@ package gba
 import "raw"
 
 // Tiles and maps share BG VRAM. Callers must reserve non-overlapping blocks.
-tile_load_4bpp :: proc "contextless" (block, tile: int, words: []u32) {
-	if block < 0 || block >= 4 || tile < 0 || tile * 8 + len(words) > raw.CHARBLOCK_SIZE / size_of(u32) do return
+tile_load_4bpp :: proc "contextless" (block, tile: i32, words: []u32) {
+	if block < 0 || block >= 4 || tile < 0 || tile * 8 + i32(len(words)) > raw.CHARBLOCK_SIZE / size_of(u32) do return
 	dest := ([^]u32)(
 		raw.VRAM_BASE + uintptr(block * raw.CHARBLOCK_SIZE + tile * raw.TILE_4BPP_SIZE),
 	)
@@ -15,16 +15,16 @@ tile_load_4bpp :: proc "contextless" (block, tile: int, words: []u32) {
 // Byte decoding avoids alignment assumptions about embedded files. Upload under blank.
 Tile_Asset :: struct {
 	palette, tiles: []u8,
-	tile_count:     int,
+	tile_count:     i32,
 }
 
 // Borrows the embedded bytes; no allocation or copying.
 tile_asset_parse :: proc "contextless" (data: []u8) -> Tile_Asset {
 	assert_contextless(len(data) >= 64 && (len(data) - 32) % 32 == 0, "invalid tile asset")
-	return {data[:32], data[32:], (len(data) - 32) / raw.TILE_4BPP_SIZE}
+	return {data[:32], data[32:], i32((len(data) - 32) / raw.TILE_4BPP_SIZE)}
 }
 
-tile_asset_load :: proc "contextless" (block, tile, palette_bank: int, asset: Tile_Asset) {
+tile_asset_load :: proc "contextless" (block, tile, palette_bank: i32, asset: Tile_Asset) {
 	assert_contextless(
 		block >= 0 &&
 		block < 4 &&
