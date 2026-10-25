@@ -3,10 +3,15 @@ package gba
 import "raw"
 
 // Tiles and maps share BG VRAM. Callers must reserve non-overlapping blocks.
-tile_load_4bpp :: proc "contextless" (block, tile: i32, words: []u32) {
-	if block < 0 || block >= 4 || tile < 0 || tile * 8 + i32(len(words)) > raw.CHARBLOCK_SIZE / size_of(u32) do return
+tile_load_4bpp :: proc "contextless" (charblock, tile: i32, words: []u32) {
+	if charblock < 0 ||
+	   charblock >= 4 ||
+	   tile < 0 ||
+	   tile * 8 + i32(len(words)) > raw.CHARBLOCK_SIZE / size_of(u32) {
+		return
+	}
 	dest := ([^]u32)(
-		raw.VRAM_BASE + uintptr(block * raw.CHARBLOCK_SIZE + tile * raw.TILE_4BPP_SIZE),
+		raw.VRAM_BASE + uintptr(charblock * raw.CHARBLOCK_SIZE + tile * raw.TILE_4BPP_SIZE),
 	)
 	for word, i in words do store_addr(&dest[i], word)
 }
@@ -24,10 +29,10 @@ tile_asset_parse :: proc "contextless" (data: []u8) -> Tile_Asset {
 	return {data[:32], data[32:], i32((len(data) - 32) / raw.TILE_4BPP_SIZE)}
 }
 
-tile_asset_load :: proc "contextless" (block, tile, palette_bank: i32, asset: Tile_Asset) {
+tile_asset_load :: proc "contextless" (charblock, tile, palette_bank: i32, asset: Tile_Asset) {
 	assert_contextless(
-		block >= 0 &&
-		block < 4 &&
+		charblock >= 0 &&
+		charblock < 4 &&
 		tile >= 0 &&
 		tile < 512 &&
 		asset.tile_count <= 512 - tile &&
@@ -37,7 +42,9 @@ tile_asset_load :: proc "contextless" (block, tile, palette_bank: i32, asset: Ti
 	)
 	store_halfwords(([^]u16)(raw.PALETTE_BG_BASE + uintptr(palette_bank * 32)), asset.palette)
 	store_halfwords(
-		([^]u16)(raw.VRAM_BASE + uintptr(block * raw.CHARBLOCK_SIZE + tile * raw.TILE_4BPP_SIZE)),
+		([^]u16)(
+			raw.VRAM_BASE + uintptr(charblock * raw.CHARBLOCK_SIZE + tile * raw.TILE_4BPP_SIZE),
+		),
 		asset.tiles,
 	)
 }

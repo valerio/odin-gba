@@ -117,14 +117,14 @@ Oam_Buffer :: [raw.OAM_SPRITE_COUNT]Sprite_Entry
 #assert(align_of(Sprite_Entry) == 4)
 
 Sprite_Config :: struct {
-	x, y:         i32,
-	size:         Sprite_Dimensions,
-	tile_index:   i32,
-	palette_bank: u8,
-	priority:     u8,
-	color_mode:   Color_Mode,
-	hflip, vflip: bool,
-	enabled:      bool,
+	using position: Vec2,
+	size:           Sprite_Dimensions,
+	tile_index:     i32,
+	palette_bank:   u8,
+	priority:       u8,
+	color_mode:     Color_Mode,
+	hflip, vflip:   bool,
+	enabled:        bool,
 }
 
 sprite_entry :: proc "contextless" (config: Sprite_Config) -> Sprite_Entry {
@@ -156,9 +156,9 @@ sprite_set :: proc "contextless" (entry: ^Sprite_Entry, config: Sprite_Config) {
 	entry.attr2 = value.attr2
 }
 
-sprite_move :: proc "contextless" (entry: ^Sprite_Entry, x, y: i32) {
-	entry.attr0.y = u8(y & 0xff)
-	entry.attr1.x = u16(x & 0x1ff)
+sprite_move :: proc "contextless" (entry: ^Sprite_Entry, position: Vec2) {
+	entry.attr0.y = u8(position.y & 0xff)
+	entry.attr1.x = u16(position.x & 0x1ff)
 }
 
 sprite_hide :: proc "contextless" (entry: ^Sprite_Entry) {

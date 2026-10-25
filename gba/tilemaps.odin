@@ -3,15 +3,47 @@ package gba
 import "raw"
 
 // One regular 32x32 screenblock. Larger maps use multiple screenblocks.
-tilemap_set :: proc "contextless" (block, x, y, tile, palette: i32) {
-	if block < 0 || block >= 32 || x < 0 || x >= 32 || y < 0 || y >= 32 do return
-	dest := ([^]u16)(raw.VRAM_BASE + uintptr(block * raw.SCREENBLOCK_SIZE))
+tilemap_set :: proc "contextless" (screenblock, x, y, tile, palette: i32) {
+	if screenblock < 0 || screenblock >= 32 || x < 0 || x >= 32 || y < 0 || y >= 32 do return
+	dest := ([^]u16)(raw.VRAM_BASE + uintptr(screenblock * raw.SCREENBLOCK_SIZE))
 	store_addr(&dest[y * 32 + x], u16(tile & 1023) | u16(palette & 15) << 12)
 }
 
-tilemap_clear :: proc "contextless" (block: i32) {
+tilemap_clear :: proc "contextless" (screenblock: i32) {
 	for y in i32(0) ..< 32 {
-		for x in i32(0) ..< 32 do tilemap_set(block, x, y, 0, 0)
+		for x in i32(0) ..< 32 do tilemap_set(screenblock, x, y, 0, 0)
+	}
+}
+
+// Tiles must be uploaded in row-major order, starting at first_tile.
+Tile_Pattern :: struct {
+	first_tile:   i32,
+	size:         Vec2,
+	palette_bank: i32,
+}
+
+// Repeats the pattern from area's top-left corner, cutting off partial repeats at its edges.
+// Area and pattern dimensions are in tiles. Area must fit in one 32x32 screenblock.
+// Use screenblock 0..31, palette bank 0..15, and positive pattern dimensions.
+// The pattern's tiles must fit in tile indices 0..1023.
+tilemap_repeat :: proc "contextless" (screenblock: i32, area: Rect, pattern: Tile_Pattern) {
+	pattern_y: i32
+	for y in 0 ..< area.size.y {
+		row_tile := pattern.first_tile + pattern_y * pattern.size.x
+		pattern_x: i32
+		for x in 0 ..< area.size.x {
+			tilemap_set(
+				screenblock,
+				area.x + x,
+				area.y + y,
+				row_tile + pattern_x,
+				pattern.palette_bank,
+			)
+			pattern_x += 1
+			if pattern_x == pattern.size.x do pattern_x = 0
+		}
+		pattern_y += 1
+		if pattern_y == pattern.size.y do pattern_y = 0
 	}
 }
 
@@ -23,28 +55,61 @@ Tile_Font :: struct {
 	palette_bank:    i32,
 }
 
-tilemap_text :: proc "contextless" (block, x, y: i32, font: Tile_Font, text: string) {
-	column := x
+tilemap_text :: proc {
+	tilemap_text_string,
+	tilemap_text_bytes,
+}
+
+tilemap_text_string :: proc "contextless" (
+	screenblock: i32,
+	position: Vec2,
+	font: Tile_Font,
+	text: string,
+) {
+	tilemap_text_bytes(screenblock, position, font, raw_data(text)[:len(text)])
+}
+
+tilemap_text_bytes :: proc "contextless" (
+	screenblock: i32,
+	position: Vec2,
+	font: Tile_Font,
+	text: []u8,
+) {
+	column := position.x
 	for i in 0 ..< len(text) {
 		glyph := i32(text[i]) - i32(font.first_codepoint)
 		if glyph >= 0 && glyph < font.glyph_count {
-			tilemap_set(block, column, y, font.first_tile + glyph, font.palette_bank)
+			tilemap_set(
+				screenblock,
+				column,
+				position.y,
+				font.first_tile + glyph,
+				font.palette_bank,
+			)
 		}
 		column += 1
 	}
 }
 
-// Draws unsigned decimal text, with optional leading zeroes.
+// Draws i32 or u32 as decimal text. min_digits pads with zeroes, not counting the minus sign.
 tilemap_number :: proc "contextless" (
-	block, x, y: i32,
+	screenblock: i32,
+	position: Vec2,
 	font: Tile_Font,
-	value: u32,
+	value: $T,
 	min_digits: i32 = 1,
-) {
+) where T == i32 ||
+	T == u32 {
 	assert_contextless(min_digits >= 1 && min_digits <= 10, "invalid digit count")
-	buffer: [10]u8
+	buffer: [11]u8
 	start := i32(len(buffer))
-	remaining := value
+	remaining := u32(value)
+	negative := false
+	when T == i32 {
+		negative = value < 0
+		// Unsigned subtraction also handles -2147483648, whose positive value won't fit in i32.
+		if negative do remaining = 0 - remaining
+	}
 	for {
 		// Exact division by 10 using a scaled reciprocal; avoids software division.
 		// https://learn.microsoft.com/en-us/archive/blogs/devdev/integer-division-by-constants
@@ -58,7 +123,11 @@ tilemap_number :: proc "contextless" (
 		start -= 1
 		buffer[start] = '0'
 	}
-	tilemap_text(block, x, y, font, transmute(string)buffer[start:])
+	if negative {
+		start -= 1
+		buffer[start] = '-'
+	}
+	tilemap_text(screenblock, position, font, buffer[start:])
 }
 
 Tilemap_Asset :: struct {
@@ -103,29 +172,29 @@ regular_tilemap_index :: proc "contextless" (columns, x, y: i32) -> i32 {
 // block locations and the map's dimensions. Choose blocks that don't overlap other backgrounds.
 // One upload is limited to a 16 KiB charblock, matching tile_asset_load.
 tilemap_asset_load :: proc "contextless" (
-	char_block, first_tile, screen_block, palette_bank: i32,
+	charblock, first_tile, screenblock, palette_bank: i32,
 	data: []u8,
 ) {
 	asset := tilemap_asset_parse(data)
 	blocks := asset.columns * asset.rows / 1024
 	assert_contextless(
-		char_block >= 0 &&
-		char_block < 4 &&
+		charblock >= 0 &&
+		charblock < 4 &&
 		first_tile >= 0 &&
 		first_tile < 512 &&
 		asset.tile_count <= 512 - first_tile &&
-		screen_block >= 0 &&
-		screen_block <= 32 - blocks &&
+		screenblock >= 0 &&
+		screenblock <= 32 - blocks &&
 		palette_bank >= 0 &&
 		palette_bank < 16,
 		"invalid tilemap placement",
 	)
-	tiles_begin := char_block * raw.CHARBLOCK_SIZE + first_tile * raw.TILE_4BPP_SIZE
+	tiles_begin := charblock * raw.CHARBLOCK_SIZE + first_tile * raw.TILE_4BPP_SIZE
 	tiles_end := tiles_begin + asset.tile_count * raw.TILE_4BPP_SIZE
-	map_begin := screen_block * raw.SCREENBLOCK_SIZE
+	map_begin := screenblock * raw.SCREENBLOCK_SIZE
 	map_end := map_begin + blocks * raw.SCREENBLOCK_SIZE
 	assert_contextless(tiles_end <= map_begin || map_end <= tiles_begin, "tilemap overlaps tiles")
-	tile_asset_load(char_block, first_tile, palette_bank, tile_asset_parse(asset.graphics))
+	tile_asset_load(charblock, first_tile, palette_bank, tile_asset_parse(asset.graphics))
 	destination := ([^]u16)(raw.VRAM_BASE + uintptr(map_begin))
 	for y in 0 ..< asset.rows {
 		for x in 0 ..< asset.columns {

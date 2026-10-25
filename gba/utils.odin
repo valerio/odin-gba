@@ -69,6 +69,7 @@ inputs_update :: proc "contextless" (i: ^Inputs) {
 // Mode3 has only 240 * 160 pixels, writing elsewhere isn't good.
 VRAM_COLORS :: cast(^[SCREEN_WIDTH * SCREEN_HEIGHT / size_of(Color)]Color)raw.VRAM_BASE
 
+// TODO: maybe use a vec2?
 mode3_set_pixel :: proc "contextless" (x, y: i32, color: Color) {
 	store(VRAM_COLORS, y * SCREEN_WIDTH + x, color)
 }
@@ -298,7 +299,7 @@ rand_seed :: proc "contextless" (seed: u32) -> Rng {
 //
 // Get a seeded state with `rand_seed()` first.
 rand_next :: proc "contextless" (state: ^Rng) -> u32 {
-	rotl :: #force_inline proc "contextless" (x: u32, k: u32) -> u32 {
+	rotl :: #force_inline proc "contextless" (x, k: u32) -> u32 {
 		return (x << k) | (x >> (32 - k))
 	}
 
@@ -360,6 +361,20 @@ rand_range_uniform :: proc "contextless" (state: ^Rng, min, max: i32) -> i32 {
 }
 
 // General helpers
+
+// Touching edges don't count as overlap. Zero or negative dimensions are empty.
+rects_overlap :: proc "contextless" (a, b: Rect) -> bool {
+	return(
+		a.size.x > 0 &&
+		a.size.y > 0 &&
+		b.size.x > 0 &&
+		b.size.y > 0 &&
+		a.x < b.x + b.size.x &&
+		a.x + a.size.x > b.x &&
+		a.y < b.y + b.size.y &&
+		a.y + a.size.y > b.y \
+	)
+}
 
 // Polls until VBLANK is set.
 // It will effectively wait until the next frame.

@@ -29,14 +29,14 @@ Bg_Size :: enum u8 {
 }
 
 Bg_Control :: bit_field u16 {
-	priority:     u8         | 2, // 0-3, 0=highest
-	char_block:   u8         | 2, // 0-3, which 16KB charblock
-	_:            u8         | 2,
-	mosaic:       bool       | 1,
-	color_mode:   Color_Mode | 1,
-	screen_block: u8         | 5, // 0-31, which 2KB screenblock
-	wrap:         bool       | 1, // affine wrap (affine BGs only)
-	size:         Bg_Size    | 2,
+	priority:    u8         | 2, // 0-3, 0=highest
+	charblock:   u8         | 2, // 0-3, which 16KB charblock
+	_:           u8         | 2,
+	mosaic:      bool       | 1,
+	color_mode:  Color_Mode | 1,
+	screenblock: u8         | 5, // 0-31, which 2KB screenblock
+	wrap:        bool       | 1, // affine wrap (affine BGs only)
+	size:        Bg_Size    | 2,
 }
 
 PALETTE_BG :: cast(^[raw.PALETTE_SIZE]Color)raw.PALETTE_BG_BASE
@@ -93,11 +93,12 @@ bg_configure :: proc "contextless" (bg: Background, config: Bg_Control) {
 	store(cast(^Bg_Control)(raw.REG_BG0CNT + uintptr(bg) * 2), config)
 }
 
-bg_scroll :: proc "contextless" (bg: Background, x, y: u16) {
-	store(cast(^u16)(raw.REG_BG0HOFS + uintptr(bg) * 4), x & 0x1ff)
-	store(cast(^u16)(raw.REG_BG0VOFS + uintptr(bg) * 4), y & 0x1ff)
+// Offsets wrap every 512 pixels, so -1 scrolls to 511.
+bg_scroll :: proc "contextless" (bg: Background, position: Vec2) {
+	store(cast(^u16)(raw.REG_BG0HOFS + uintptr(bg) * 4), u16(position.x & 0x1ff))
+	store(cast(^u16)(raw.REG_BG0VOFS + uintptr(bg) * 4), u16(position.y & 0x1ff))
 }
 
-bg_scroll_x :: proc "contextless" (bg: Background, x: u16) {
-	store(cast(^u16)(raw.REG_BG0HOFS + uintptr(bg) * 4), x & 0x1ff)
+bg_scroll_x :: proc "contextless" (bg: Background, x: i32) {
+	store(cast(^u16)(raw.REG_BG0HOFS + uintptr(bg) * 4), u16(x & 0x1ff))
 }

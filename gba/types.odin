@@ -4,6 +4,13 @@ SCREEN_WIDTH :: 240
 SCREEN_HEIGHT :: 160
 SCREEN_PIXELS :: SCREEN_WIDTH * SCREEN_HEIGHT
 
+Vec2 :: [2]i32
+
+Rect :: struct {
+	using position: Vec2,
+	size:           Vec2,
+}
+
 // an rgb5 color
 Color :: distinct u16
 
