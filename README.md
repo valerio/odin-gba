@@ -2,7 +2,13 @@
 
 Tools and utilities to build basic GBA ROMs using the Odin programming language.
 
-**This is a work in progress**: functionality besides basic mode 3 rendering and input is missing, but that's enough for some simple demos like:
+**This is a work in progress**, but there's enough here for some simple demos like:
+
+  <p align="center">
+    <img src="./img/flappy.gif" alt="Flappy Bird example running in mGBA">
+    <br>
+    <sub>Mode 0 Flappy Bird example running in mGBA on macOS</sub>
+  </p>
 
   <p align="center">
     <img src="./img/demo.gif" alt="Odin GBA example running in mGBA">
@@ -54,6 +60,7 @@ Build a package as a full rom:
 ```sh
 odin run tools -- build examples/00-mode3-input
 odin run tools -- build examples/01-mode3-print
+odin run tools -- build examples/03-flappy-bird
 ```
 
 A full program needs to have:
