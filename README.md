@@ -21,6 +21,10 @@ Tools and utilities to build basic GBA ROMs using the Odin programming language.
     <img src="./img/bios-checksum-gba-sp.jpg" alt="Odin GBA BIOS checksum example running on a Game Boy Advance SP" width="45%">
     <br>
     <sub>BIOS functions example running on a real Game Boy Advance SP</sub>
+    <br>
+    <img src="./img/flappy-gba-sp.gif" alt="Flappy Bird example running on a real Game Boy Advance SP">
+    <br>
+    <sub>Flappy Bird example running on a real Game Boy Advance SP</sub>
   </p>
 
 The repo also includes a CLI under [tools](./tools) for building and other utilites:
