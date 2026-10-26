@@ -75,6 +75,8 @@ FONT :: gba.Tile_Font {
 	glyph_count     = 96,
 	palette_bank    = 1,
 }
+TEXT_CANVAS_TILE :: FONT_TILE + FONT.glyph_count
+MESSAGE_SIZE :: gba.Vec2{SCREEN_W, 72}
 BIRD_ANIMATION :: gba.Sprite_Animation {
 	first_tile      = OBJ_TILE_BIRD,
 	frame_count     = 4,
@@ -106,8 +108,24 @@ Game :: struct {
 	score:    u32,
 }
 
+// Position is the window's screen position in pixels, aligned to 8 pixels.
+// Text coordinates are pixels inside the window.
+Text_Window :: struct {
+	canvas:        gba.Tile_Canvas,
+	font:          gba.Tile_Canvas_Font,
+	position:      gba.Vec2,
+	charblock:     i32,
+	first_tile:    i32,
+	screenblock:   i32,
+	palette_bank:  i32,
+	// Only upload rows that changed, rather than the whole window.
+	occupied_rows: u32,
+	dirty_rows:    u32,
+}
+
 // Edit sprites in RAM, then upload them together during VBlank.
 sprites: gba.Oam_Buffer
+text_pixels: [MESSAGE_SIZE.x * MESSAGE_SIZE.y / 2]u8
 
 @(export)
 gba_main :: proc "contextless" () {
@@ -117,6 +135,18 @@ gba_main :: proc "contextless" () {
 	setup_tiles()
 	setup_display()
 
+	messages := Text_Window {
+		canvas = {tiles = text_pixels[:], size = MESSAGE_SIZE},
+		font = {
+			tiles = gba.tile_asset_parse(FONT_ASSET).tiles,
+			first_codepoint = FONT.first_codepoint,
+		},
+		position = {0, 32},
+		charblock = CHARBLOCK_BG,
+		first_tile = TEXT_CANVAS_TILE,
+		screenblock = SCREENBLOCK_TEXT,
+		palette_bank = FONT.palette_bank,
+	}
 	game := Game {
 		state = .Title,
 		rng   = gba.rand_seed(1337),
@@ -137,8 +167,11 @@ gba_main :: proc "contextless" () {
 	input: gba.Inputs
 	update_sprites(&game)
 	gba.sprites_commit(&sprites)
-	gba.tilemap_text(SCREENBLOCK_TEXT, {8, 4}, FONT, "FLAPPY BIRD")
-	gba.tilemap_text(SCREENBLOCK_TEXT, {7, 12}, FONT, "PRESS A TO FLAP")
+	// TODO better API to draw directly.
+	text_window_clear(&messages)
+	text_window_text(&messages, {SCREEN_W / 2, 0}, "FLAPPY BIRD", align = .Center)
+	text_window_text(&messages, {SCREEN_W / 2, 64}, "PRESS A TO FLAP", align = .Center)
+	text_window_commit(&messages)
 	gba.display_set({.BG0, .BG1, .BG2, .Sprites})
 	gba.display_clear({.Force_Blank})
 	previous := game.state
@@ -153,10 +186,12 @@ gba_main :: proc "contextless" () {
 		redraw_score := game.state != previous || game.score != previous_score
 		if game.state != previous {
 			gba.tilemap_clear(SCREENBLOCK_TEXT)
+			text_window_clear(&messages)
 			if game.state == .Game_Over {
-				gba.tilemap_text(SCREENBLOCK_TEXT, {9, 5}, FONT, "GAME OVER")
-				gba.tilemap_text(SCREENBLOCK_TEXT, {6, 8}, FONT, "A: TRY AGAIN")
+				text_window_text(&messages, {SCREEN_W / 2, 8}, "GAME OVER", align = .Center)
+				text_window_text(&messages, {SCREEN_W / 2, 32}, "A: TRY AGAIN", align = .Center)
 			}
+			text_window_commit(&messages)
 			previous = game.state
 		}
 		if game.state != .Title && redraw_score do draw_score(game.score)
@@ -408,6 +443,54 @@ update_sprites :: proc "contextless" (g: ^Game) {
 	scroll := i32(g.scroll)
 	gba.bg_scroll_x(BG_GROUND, scroll)
 	gba.bg_scroll(.BG2, {scroll / 4, SKY_SCROLL_Y})
+}
+
+text_window_clear :: proc "contextless" (window: ^Text_Window) {
+	gba.tile_canvas_clear(window.canvas)
+	window.dirty_rows |= window.occupied_rows
+	window.occupied_rows = 0
+}
+
+// A tilemap puts each character on an 8-pixel grid, which makes centering awkward.
+// Drawing into a window first lets us place text at exact pixel positions,
+// then upload the result as tiles. Idea shamelessly lifted from a pkmn Emerald decomp.
+text_window_text :: proc "contextless" (
+	window: ^Text_Window,
+	position: gba.Vec2,
+	text: string,
+	align: gba.Text_Alignment = .Left,
+) {
+	if len(text) == 0 do return
+	gba.tile_canvas_text(window.canvas, position, window.font, text, align)
+	top := max(i32(0), position.y)
+	bottom := min(window.canvas.size.y, position.y + 8)
+	if bottom <= top do return
+	for row in top / 8 ..< (bottom + 7) / 8 {
+		bit := u32(1) << u32(row)
+		window.occupied_rows |= bit
+		window.dirty_rows |= bit
+	}
+}
+
+text_window_commit :: proc "contextless" (window: ^Text_Window) {
+	columns := window.canvas.size.x / 8
+	row_bytes := window.canvas.size.x * 8 / 2
+	for row in i32(0) ..< window.canvas.size.y / 8 {
+		if window.dirty_rows & (u32(1) << u32(row)) == 0 do continue
+		canvas := gba.Tile_Canvas {
+			tiles = window.canvas.tiles[row * row_bytes:][:row_bytes],
+			size  = {window.canvas.size.x, 8},
+		}
+		gba.tile_canvas_commit(
+			canvas,
+			window.charblock,
+			window.first_tile + row * columns,
+			window.screenblock,
+			window.position / 8 + gba.Vec2{0, row},
+			window.palette_bank,
+		)
+	}
+	window.dirty_rows = 0
 }
 
 draw_score :: proc "contextless" (score: u32) {
