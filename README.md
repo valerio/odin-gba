@@ -7,7 +7,7 @@ Tools and utilities to build basic GBA ROMs using the Odin programming language.
   <p align="center">
     <img src="./img/flappy.gif" alt="Flappy Bird example running in mGBA">
     <br>
-    <sub>Assets by <a href="https://megacrash.itch.io/flappy-bird-assets">Megacrash</a></sub>
+    <sub>Flappy Bird-like demo in Mode 0, Assets by <a href="https://megacrash.itch.io/flappy-bird-assets">Megacrash</a></sub>
   </p>
 
   <p align="center">
